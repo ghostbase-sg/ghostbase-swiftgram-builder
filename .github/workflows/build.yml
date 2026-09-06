@@ -1,11 +1,10 @@
-name: Jerkgram 12.9.2 Build130
+name: Jerkgram 12.9.2 Build133
 
 on:
   workflow_dispatch:
   push:
     branches:
       - Jerkgram-12.9.2
-      - dev/build124-runtime-15
 
 concurrency:
   group: jerkgram-build-${{ github.workflow }}-${{ github.ref }}
@@ -133,7 +132,19 @@ jobs:
             scripts/verify_jerkgram_v12s_build128_final_ipa.py \
             scripts/jerkgram_finalize_build130_identity.py \
             scripts/verify_jerkgram_v12s_build130_final_ipa.py \
-            scripts/jerkgram_publish_build130_artifact.py
+            scripts/jerkgram_publish_build130_artifact.py \
+            scripts/apply_jerkgram_v12t_build133_blocked_reactions1.py \
+            scripts/verify_jerkgram_v12t_build133_blocked_reactions1.py \
+            scripts/apply_jerkgram_v12u_build133_blocked_activity1.py \
+            scripts/verify_jerkgram_v12u_build133_blocked_activity1.py \
+            scripts/apply_jerkgram_v12v_build133_settings1.py \
+            scripts/verify_jerkgram_v12v_build133_settings1.py \
+            scripts/apply_jerkgram_v12w_build133_music_overlay1.py \
+            scripts/verify_jerkgram_v12w_build133_music_overlay1.py \
+            scripts/install_jerkgram_v12w_build133_probe_hook.py \
+            scripts/jerkgram_finalize_build133_identity.py \
+            scripts/verify_jerkgram_v12w_build133_final_ipa.py \
+            scripts/jerkgram_publish_build133_artifact.py
 
           # Preserve the established late-release regression gates.
           python3 -m unittest tests.test_jerkgram_v12h_build119_hybrid_ui1
@@ -190,9 +201,15 @@ jobs:
           python3 -m unittest tests.test_jerkgram_v12o_build126_keychain_packaging1
           python3 -m unittest tests.test_jerkgram_v12o_build126_release_contract1
 
-          # Canonical materialization chain. Build125 root installer invokes the
-          # Build124/Build123 chain itself, then appends every Build125 overlay
-          # and verifier before Bazel and advances the final IPA identity.
+          # Build133 runtime-repair contracts. Materialized owner verifiers run
+          # again from the probe immediately before Bazel.
+          python3 -m unittest tests.test_jerkgram_v12t_build133_blocked_reactions1
+          python3 -m unittest tests.test_jerkgram_v12u_build133_blocked_activity1
+          python3 -m unittest tests.test_jerkgram_v12v_build133_settings1
+          python3 -m unittest tests.test_jerkgram_v12w_build133_music_overlay1
+
+          # Canonical materialization chain. Build133 root installer delegates
+          # to Build130/Build125, then appends v12t/v12u/v12v/v12w before Bazel.
           python3 scripts/install_jerkgram_v12d_build115_probe_hook.py
           python3 scripts/install_jerkgram_v12e_build116_probe_hook.py
           python3 scripts/install_jerkgram_v12f_build117_probe_hook.py
@@ -201,19 +218,18 @@ jobs:
           python3 scripts/install_jerkgram_v12i_build120_probe_hook.py
           python3 scripts/install_jerkgram_v12j_build121_probe_hook.py
           python3 scripts/install_jerkgram_v12k_build122_probe_hook.py
-          python3 scripts/install_jerkgram_v12n_build125_probe_hook.py
-          python3 scripts/install_jerkgram_v12s_build130_probe_hook.py
+          python3 scripts/install_jerkgram_v12w_build133_probe_hook.py
           python3 scripts/verify_jerkgram_v12m_build124_wiring1.py
           python3 scripts/verify_jerkgram_v12n_build125_wiring1.py
 
           chmod +x scripts/bazel_build_probe_official.sh
           scripts/bazel_build_probe_official.sh
 
-      - name: Upload materialized Build130 diagnostic owners
+      - name: Upload materialized Build133 diagnostic owners
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: Build130-materialized-owner-diagnostics
+          name: Build133-materialized-owner-diagnostics
           path: |
             work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Messages/MarkMessageContentAsConsumedInteractively.swift
             work/swiftgram-src/submodules/TelegramCore/Sources/State/ManagedAutoremoveMessageOperations.swift
@@ -228,20 +244,30 @@ jobs:
             work/swiftgram-src/submodules/SettingsUI/Sources/Jerkgram/JerkgramDataAndBackupController.swift
             work/swiftgram-src/submodules/TelegramUI/Components/Chat/ChatSearchNavigationContentNode/Sources/JerkgramTimeMachineController.swift
             work/swiftgram-src/submodules/TelegramPresentationData/Sources/JerkgramStrings.swift
+            work/swiftgram-src/submodules/TelegramCore/Sources/ApiUtils/ReactionsMessageAttribute.swift
+            work/swiftgram-src/submodules/TelegramCore/Sources/State/MessageReactions.swift
+            work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Privacy/BlockedPeersContext.swift
+            work/swiftgram-src/submodules/TelegramCore/Sources/ApiUtils/StoreMessage_Telegram.swift
+            work/swiftgram-src/submodules/TelegramCore/Sources/State/AccountViewTracker.swift
+            work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Messages/DeleteMessages.swift
+            work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Messages/ChatList.swift
+            work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Messages/EarliestUnseenPersonalMentionMessage.swift
+            work/swiftgram-src/submodules/TelegramUI/Sources/OverlayAudioPlayerController.swift
+            work/swiftgram-src/submodules/TelegramUI/Sources/OverlayAudioPlayerControllerNode.swift
           if-no-files-found: warn
 
-      - name: Publish Jerkgram Build130 artifact
+      - name: Publish Jerkgram Build133 artifact
         if: success()
         run: |
           set -e
-          python3 scripts/jerkgram_publish_build130_artifact.py
+          python3 scripts/jerkgram_publish_build133_artifact.py
 
-      - name: Upload Jerkgram Build130
+      - name: Upload Jerkgram Build133
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Jerkgram-Build130
+          name: Jerkgram-Build133
           path: |
-            artifacts/Jerkgram-Build130.ipa
-            artifacts/Jerkgram-Build130-info.txt
+            artifacts/Jerkgram-Build133.ipa
+            artifacts/Jerkgram-Build133-info.txt
           if-no-files-found: error
