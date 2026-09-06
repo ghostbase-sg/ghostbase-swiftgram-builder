@@ -1,0 +1,21 @@
+name: Build133 Integration Trigger
+
+on:
+  push:
+    branches:
+      - dev/build133-runtime-repair
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-build133:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch main Build133 workflow on this branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
