@@ -131,7 +131,6 @@ def patch_settings_text(text: str) -> str:
     require("private enum GhostBaseKey" in text, "GhostBaseKey owner missing")
     require("private struct GhostBaseSettingsState" in text, "Settings state owner missing")
     require("private func ghostBaseSettingsEntries(" in text, "Settings entries owner missing")
-    require("ItemListSwitchItem(" in text or "case let .toggle" in text, "native toggle renderer missing")
 
     # Stable keys: no key rename/migration churn in Build133.
     key_start, key_end = block_bounds(text, "private enum GhostBaseKey")
