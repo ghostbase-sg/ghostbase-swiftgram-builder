@@ -108,7 +108,8 @@ class Build133BlockedActivityContracts(unittest.TestCase):
         result = patch2.patch_delete_messages(fixture)
         self.assertEqual(result.count(patch2.base.DELETE_MARKER), 2)
         self.assertNotIn("?.hasUnseen == true", result)
-        self.assertEqual(result.count("hasVisibleUnseenReaction"), 2)
+        # Each owner contains the local variable name, policy call and if-check.
+        self.assertEqual(result.count("hasVisibleUnseenReaction"), 6)
 
     def test_verifier_contract_exists(self):
         verify = self.load(VERIFY, "build133_blocked_activity_verify")
