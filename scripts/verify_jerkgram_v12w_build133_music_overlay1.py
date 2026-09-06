@@ -70,7 +70,11 @@ def main() -> None:
 
     require("UIColor(white: 0.0, alpha: 0.5)" not in actual_node, "stock heavy dim survived")
     require("UIColor(white: 0.0, alpha: 0.18)" in actual_node, "bounded dim adaptation missing")
-    require(actual_node.count("withAlphaComponent(0.94)") == 9, "native translucent material anchor count != 9")
+
+    # Exact bounded coverage from apply_native_material():
+    # 4 initial surfaces + 8 refresh branches + 1 native corner fill = 13.
+    # Full-file equality above additionally guarantees no unrelated material edits.
+    require(actual_node.count("withAlphaComponent(0.94)") == 13, "native translucent material anchor count != 13")
 
     print("[Build133 music verifier] PREFLIGHT GREEN")
 
