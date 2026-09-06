@@ -1,10 +1,12 @@
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 
 REPO = Path(__file__).resolve().parents[1]
 PATCH = REPO / "scripts" / "apply_jerkgram_v12u_build133_blocked_activity1.py"
+PATCH2 = REPO / "scripts" / "apply_jerkgram_v12u_build133_blocked_activity2.py"
 VERIFY = REPO / "scripts" / "verify_jerkgram_v12u_build133_blocked_activity1.py"
 
 
@@ -72,6 +74,41 @@ class Build133BlockedActivityContracts(unittest.TestCase):
                 enabled=True,
             )
         )
+
+    def test_materialized_delete_owners_allow_different_indentation(self):
+        sys.path.insert(0, str(REPO / "scripts"))
+        try:
+            patch2 = self.load(PATCH2, "build133_blocked_activity_patch2")
+        finally:
+            sys.path.pop(0)
+
+        def owner(signature: str, indent: str) -> str:
+            return f'''{signature} {{
+{indent}var tags = currentMessage.tags
+{indent}if attributes.contains(where: {{ ($0 as? ReactionsMessageAttribute)?.hasUnseen == true }}) {{
+{indent}    tags.insert(.unseenReaction)
+{indent}}} else {{
+{indent}    tags.remove(.unseenReaction)
+{indent}}}
+}}
+'''
+
+        fixture = (
+            owner(
+                "func _internal_deleteAllReactionsWithAuthor(account: Account, peerId: PeerId, authorId: PeerId, aroundMessageId: MessageId?) -> Signal<Never, NoError>",
+                "                    ",
+            )
+            + "\n"
+            + owner(
+                "func _internal_deleteReaction(account: Account, messageId: MessageId, authorId: PeerId) -> Signal<Never, NoError>",
+                "                ",
+            )
+            + "\nfunc _internal_clearHistory() {}\n"
+        )
+        result = patch2.patch_delete_messages(fixture)
+        self.assertEqual(result.count(patch2.base.DELETE_MARKER), 2)
+        self.assertNotIn("?.hasUnseen == true", result)
+        self.assertEqual(result.count("hasVisibleUnseenReaction"), 4)
 
     def test_verifier_contract_exists(self):
         verify = self.load(VERIFY, "build133_blocked_activity_verify")
