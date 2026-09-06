@@ -19,7 +19,7 @@ BAZEL_ANCHOR = '"$BAZEL_BIN" build ${BAZEL_EXTRA_ARGS:-}'
 SOURCE_ORDERED = (
     "apply_jerkgram_v12t_build133_blocked_reactions1.py",
     "verify_jerkgram_v12t_build133_blocked_reactions1.py",
-    "apply_jerkgram_v12u_build133_blocked_activity1.py",
+    "apply_jerkgram_v12u_build133_blocked_activity2.py",
     "verify_jerkgram_v12u_build133_blocked_activity1.py",
     "apply_jerkgram_v12v_build133_settings1.py",
     "verify_jerkgram_v12v_build133_settings1.py",
@@ -89,7 +89,7 @@ def main() -> None:
     require(PROBE.is_file(), "probe missing: " + str(PROBE))
     PROBE.write_text(patch_probe(PROBE.read_text(encoding="utf-8")), encoding="utf-8")
     print("[Build133 probe hook] GREEN")
-    print("[Build133 probe hook] Build130 -> v12t reactions -> v12u activity/navigation -> v12v Settings -> v12w music -> final source gate -> Bazel")
+    print("[Build133 probe hook] Build130 -> v12t reactions -> v12u activity2/navigation -> v12v Settings -> v12w music -> final source gate -> Bazel")
 
 
 if __name__ == "__main__":
