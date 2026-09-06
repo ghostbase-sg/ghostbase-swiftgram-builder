@@ -25,6 +25,7 @@ SOURCE_ORDERED = (
     "verify_jerkgram_v12v_build133_settings1.py",
     "apply_jerkgram_v12w_build133_music_overlay1.py",
     "verify_jerkgram_v12w_build133_music_overlay1.py",
+    "verify_jerkgram_v12w_build133_runtime_repair1.py",
 )
 FINAL_ORDERED = (
     "jerkgram_finalize_build133_identity.py",
@@ -62,7 +63,7 @@ def patch_probe(text: str) -> str:
     require(source_positions == sorted(source_positions), "Build133 source apply/verifier order")
     require(all(text.count(name) == 1 for name in SOURCE_ORDERED), "Build133 source hook count")
     require(text.index(BUILD130_SOURCE_ANCHOR) < source_positions[0], "Build133 must follow Build130")
-    require(source_positions[-1] < text.index(BAZEL_ANCHOR), "Build133 source verifier must precede Bazel")
+    require(source_positions[-1] < text.index(BAZEL_ANCHOR), "Build133 final source verifier must precede Bazel")
 
     if FINAL_MARKER not in text:
         require(all(text.count(name) == 0 for name in FINAL_ORDERED), "partial preexisting Build133 final block")
@@ -88,7 +89,7 @@ def main() -> None:
     require(PROBE.is_file(), "probe missing: " + str(PROBE))
     PROBE.write_text(patch_probe(PROBE.read_text(encoding="utf-8")), encoding="utf-8")
     print("[Build133 probe hook] GREEN")
-    print("[Build133 probe hook] Build130 -> v12t reactions -> v12u activity/navigation -> v12v Settings -> v12w music -> Bazel")
+    print("[Build133 probe hook] Build130 -> v12t reactions -> v12u activity/navigation -> v12v Settings -> v12w music -> final source gate -> Bazel")
 
 
 if __name__ == "__main__":
