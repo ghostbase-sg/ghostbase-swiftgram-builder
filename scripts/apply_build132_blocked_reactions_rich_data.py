@@ -1,29 +1,45 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
+import sys
 from pathlib import Path
 
-TARGET = Path("materialized/telegram-ios/submodules/TelegramCore/Sources/State/AccountStateManager.swift")
-MARKER = "jerkgram_build132_blocked_reactions_rich_data_v1"
+OWNER = Path("submodules/TelegramUI/Components/Chat/ChatMessageRichDataBubbleContentNode/Sources/ChatMessageRichDataBubbleContentNode.swift")
+MARKER = "// MARK: JERKGRAM_BUILD132_BLOCKED_REACTION_UI_FILTER"
+ORIGINAL = "mergedMessageReactions(attributes: item.message.attributes, isTags: item.message.areReactionsTags(accountPeerId: item.context.account.peerId))"
+WRAPPED = '''jerkgramFilteredReactionsForBlockedPeers(
+                        message: item.message,
+                        reactions: mergedMessageReactions(attributes: item.message.attributes, isTags: item.message.areReactionsTags(accountPeerId: item.context.account.peerId)),
+                        enabled: UserDefaults.standard.bool(forKey: "jerkgram.Messages.HideBlockedReactions")
+                    )'''
 
-def main():
-    if not TARGET.exists():
-        raise SystemExit(f"missing {TARGET}")
-    text = TARGET.read_text(encoding="utf-8")
+
+def fail(message: str) -> None:
+    print(f"[build132-blocked-reactions-rich-data] FAIL: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        fail("usage: apply_build132_blocked_reactions_rich_data.py <materialized-source-root>")
+    root = Path(sys.argv[1]).expanduser().resolve()
+    path = root / OWNER
+    if not path.is_file():
+        fail(f"missing exact owner: {OWNER}")
+
+    text = path.read_text(encoding="utf-8")
     if MARKER in text:
-        print("already patched")
+        print("[build132-blocked-reactions-rich-data] already applied")
         return
 
-    anchor = """                        let author = transaction.getPeer(postboxMessage.author.id)"""
-    if anchor not in text:
-        raise SystemExit("rich_data anchor not found")
-    replacement = """                        // jerkgram_build132_blocked_reactions_rich_data_v1
-                        let jerkgramBuild132HideBlockedReactionPayload = (UserDefaults.standard.object(forKey: "jerkgram.Messages.HideBlockedReactions") as? Bool) ?? true
-                        if jerkgramBuild132HideBlockedReactionPayload && postbox.blockedPeerStatusTable.get(postboxMessage.author.id).value == true {
-                            continue
-                        }
-                        let author = transaction.getPeer(postboxMessage.author.id)"""
-    text = text.replace(anchor, replacement, 1)
-    TARGET.write_text(text, encoding="utf-8")
-    print("patched AccountStateManager rich data")
+    count = text.count(ORIGINAL)
+    if count < 1:
+        fail(f"reaction expression missing in {OWNER}")
+
+    text = MARKER + "\n" + text.replace(ORIGINAL, WRAPPED)
+    path.write_text(text, encoding="utf-8")
+    print(f"[build132-blocked-reactions-rich-data] patched expressions={count}")
+
 
 if __name__ == "__main__":
     main()

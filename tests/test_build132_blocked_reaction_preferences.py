@@ -1,34 +1,39 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
+import importlib.util
 from pathlib import Path
 import unittest
 
 REPO = Path(__file__).resolve().parents[1]
-SCRIPTS = REPO / "scripts"
-KEY = "jerkgram.Messages.HideBlockedReactions"
+PATCHER = REPO / "scripts" / "apply_build132_blocked_reactions_visibility.py"
 
 
-class Build132BlockedReactionPreferenceContractTests(unittest.TestCase):
-    def test_runtime_readers_default_to_enabled_without_false_missing_key(self):
-        paths = [
-            SCRIPTS / "apply_build132_blocked_reactions_visibility.py",
-            SCRIPTS / "apply_build132_blocked_reaction_list_filter.py",
-            SCRIPTS / "apply_build132_blocked_reactions_rich_data.py",
-        ]
-        for path in paths:
-            text = path.read_text(encoding="utf-8")
-            self.assertNotIn(f'bool(forKey: "{KEY}")', text, path.name)
-            self.assertIn(f'object(forKey: "{KEY}") as? Bool', text, path.name)
-            self.assertIn("?? true", text, path.name)
+def load_patcher():
+    spec = importlib.util.spec_from_file_location("build132_blocked_reactions_visibility", PATCHER)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load Build132 blocked reaction patcher")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
-    def test_scoped_setting_is_mirrored_for_runtime_readers(self):
-        text = (SCRIPTS / "apply_build132_blocked_reactions_visibility.py").read_text(encoding="utf-8")
+
+class Build132BlockedReactionSettingsTests(unittest.TestCase):
+    def test_toggle_is_localized_and_mirrored_to_runtime_preference(self):
+        module = load_patcher()
+        source = '''    static let hideBlockedMessages = "jerkgram.Messages.HideBlockedMessages"\n\n    var hideBlockedMessages: Bool\n\n            hideBlockedMessages: jerkgramScopedBool(accountPeerId: accountPeerId, key: GhostBaseKey.hideBlockedMessages, defaultValue: true),\n\n        GhostBaseKey.hideBlockedMessages: .bool(state.hideBlockedMessages),\n\n            .toggle(\n                1,\n                90,\n                GhostBaseKey.hideBlockedMessages,\n                "Скрывать сообщения заблокированных",\n                state.hideBlockedMessages\n            ),\n\n            case GhostBaseKey.hideBlockedMessages:\n                updated.hideBlockedMessages = value\n'''
+        result = module.patch_settings(source)
+
+        self.assertIn("Hide blocked users' messages", result)
+        self.assertIn("Hide blocked users' reactions", result)
+        self.assertIn('strings.languageCode == "ru"', result)
         self.assertIn(
-            f'UserDefaults.standard.set(state.hideBlockedReactions, forKey: "{KEY}")',
-            text,
+            "UserDefaults.standard.set(value, forKey: GhostBaseKey.hideBlockedReactions)",
+            result,
         )
         self.assertIn(
-            'jerkgramPersistScopedSettingValues(accountPeerId: self.context.account.peerId.toInt64(), values: values)',
-            text,
+            "hideBlockedReactions: jerkgramScopedBool(accountPeerId: accountPeerId, key: GhostBaseKey.hideBlockedReactions, defaultValue: false)",
+            result,
         )
 
 
