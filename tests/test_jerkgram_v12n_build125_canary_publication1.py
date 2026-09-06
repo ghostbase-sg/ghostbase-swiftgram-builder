@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -8,9 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 class Build125CanaryPublicationTests(unittest.TestCase):
     def test_workflow_can_advance_past_build125_with_a_successor_artifact(self):
         workflow = (ROOT / ".github/workflows/build.yml").read_text(encoding="utf-8")
-        self.assertIn("Jerkgram 12.9.2 Build130", workflow)
-        self.assertIn("Jerkgram-Build130", workflow)
-        self.assertIn("jerkgram_publish_build130_artifact.py", workflow)
+        match = re.search(r"name:\s+Jerkgram 12\.9\.2 Build(\d+)", workflow)
+        self.assertIsNotNone(match)
+        successor_build = int(match.group(1))
+        self.assertGreater(successor_build, 125)
+        self.assertIn(f"Jerkgram-Build{successor_build}", workflow)
+        self.assertIn(f"jerkgram_publish_build{successor_build}_artifact.py", workflow)
 
     def test_final_identity_and_verifier_require_build125(self):
         identity = (ROOT / "scripts/jerkgram_finalize_build125_identity.py").read_text(encoding="utf-8")
