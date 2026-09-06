@@ -49,7 +49,15 @@ class Build133MusicOverlayContracts(unittest.TestCase):
         self.assertIn("UIVisualEffectView()", result)
         self.assertIn("UIColor(white: 0.0, alpha: 0.18)", result)
         self.assertNotIn("UIColor(white: 0.0, alpha: 0.5)", result)
-        self.assertEqual(result.count("withAlphaComponent(0.94)"), 9)
+
+        # Exact bounded material coverage:
+        #   4 initial surfaces
+        # + 2 branches on historyBackgroundContentNode refresh
+        # + 6 branches on the three frame-overlay refreshes
+        # + 1 native corner fill
+        # = 13 alpha applications. This is not a global replacement; every
+        # source anchor is independently fail-closed in apply_native_material().
+        self.assertEqual(result.count("withAlphaComponent(0.94)"), 13)
 
     def test_transform_fails_closed_when_native_anchor_changes(self):
         fixture = self.official_fixture().replace(
