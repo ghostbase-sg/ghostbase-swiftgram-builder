@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+import re
 import unittest
 
 
@@ -38,7 +39,9 @@ class Build133SettingsContracts(unittest.TestCase):
             self.patch.localized_settings_strings("en"),
         )
 
-    def test_messages_rows_use_native_toggle_entry(self):
+    def test_messages_rows_use_native_toggle_entry_with_existing_trailing_comma(self):
+        # Reproduces Build133 #710: the canonical Messages array already ends
+        # its last element with a comma. The overlay must not emit a second one.
         fixture = '''
 private enum GhostBaseKey {
     static let saveDeleted = "Jerkgram.Messages.SaveDeleted"
@@ -58,7 +61,7 @@ private func ghostBaseSettingsEntries(state: GhostBaseSettingsState, context: Ac
     if page == .messages {
         return [
             .header(0, strings.deletedMessages),
-            .toggle(0, 1, GhostBaseKey.saveDeleted, strings.saveDeletedMessages, state.saveDeleted)
+            .toggle(0, 1, GhostBaseKey.saveDeleted, strings.saveDeletedMessages, state.saveDeleted),
         ]
     }
     return []
@@ -78,6 +81,10 @@ private func f() {
         self.assertIn("strings.hideBlockedReactions", result)
         self.assertIn(".toggle(1, 1, GhostBaseKey.hideBlockedMessages", result)
         self.assertIn(".toggle(1, 2, GhostBaseKey.hideBlockedReactions", result)
+        self.assertIsNone(
+            re.search(r",\s*,\s*\.header\(1,\s*strings\.blockedUsers\)", result),
+            result,
+        )
         self.assertNotIn("UISwitch(", result)
         self.assertNotIn("switch.frame", result)
 
