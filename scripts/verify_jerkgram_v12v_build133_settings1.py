@@ -77,6 +77,14 @@ def verify_settings(text: str) -> None:
     require(messages.count("strings.hideBlockedMessages") == 1, "blocked-message row count != 1")
     require(messages.count("strings.hideBlockedReactions") == 1, "blocked-reaction row count != 1")
 
+    # Guard the exact Build133 regression that reached Swift compilation: the
+    # preexisting last row already had a trailing comma and the patch emitted a
+    # second standalone comma before the new blocked-users header.
+    require(
+        re.search(r",\s*,\s*\.header\(\d+,\s*strings\.blockedUsers\)", messages) is None,
+        "duplicate/standalone comma before blocked section",
+    )
+
     header = re.search(r"\.header\((\d+),\s*strings\.blockedUsers\)", messages)
     blocked_messages = re.search(r"\.toggle\((\d+),\s*1,\s*GhostBaseKey\.hideBlockedMessages", messages)
     blocked_reactions = re.search(r"\.toggle\((\d+),\s*2,\s*GhostBaseKey\.hideBlockedReactions", messages)
