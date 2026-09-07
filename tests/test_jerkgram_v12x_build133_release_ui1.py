@@ -45,7 +45,12 @@ private func ghostBaseSettingsEntries(state: GhostBaseSettingsState, page: Ghost
     if page == .about {
         return [
             .header(0, strings.about),
-            .info(1, strings.build124AboutSummary)
+            .header(1, strings.version),
+            .aboutValue(1, 1, strings.jerkgramVersion, Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"),
+            .aboutValue(1, 2, strings.build, Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"),
+            .aboutValue(1, 3, strings.telegramBase, "12.9.2"),
+            .header(2, strings.privacy),
+            .info(3, "analytics footer")
         ]
     }
     return []
@@ -53,6 +58,7 @@ private func ghostBaseSettingsEntries(state: GhostBaseSettingsState, page: Ghost
 '''
 
 STRINGS_FIXTURE = r'''
+// MARK: Jerkgram v1.2M BUILD124_SETTINGS_REDESIGN_STRINGS1
 public struct JerkgramStrings {
     public let languageCode: String
 }
@@ -84,7 +90,17 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         self.assertIn(".info(1, \"messages footer\")", updated)
         self.assertIn(".info(1, \"appearance footer\")", updated)
 
-    def test_about_uses_single_release_identity(self):
+    def test_real_about_rows_use_single_release_identity_not_plist_version(self):
+        module = self.load_patch()
+        updated = module.patch_settings_text(SETTINGS_FIXTURE)
+        about = module.block_text(updated, "if page == .about {")
+        self.assertIn("strings.jerkgramVersion, JerkgramReleaseIdentity.displayVersion", about)
+        self.assertIn("strings.build, JerkgramReleaseIdentity.build", about)
+        self.assertIn("strings.telegramBase, JerkgramReleaseIdentity.telegramBase", about)
+        self.assertNotIn("CFBundleShortVersionString", about)
+        self.assertNotIn("CFBundleVersion", about)
+
+    def test_release_strings_hold_display_and_technical_identity(self):
         module = self.load_patch()
         updated = module.patch_strings_text(STRINGS_FIXTURE)
         for token in (
@@ -95,9 +111,9 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
             '"Jerkgram Version \\(displayVersion)\\nBuild \\(build)\\nTelegram Base \\(telegramBase)"',
         ):
             self.assertIn(token, updated)
-        about = module.block_text(updated, "var build124AboutSummary: String {")
-        self.assertIn("JerkgramReleaseIdentity.aboutText", about)
-        self.assertNotIn("Build 124 Canary", about)
+        summary = module.block_text(updated, "var build124AboutSummary: String {")
+        self.assertIn("JerkgramReleaseIdentity.aboutText", summary)
+        self.assertNotIn("Build 124 Canary", summary)
 
     def test_final_ipa_contract_keeps_public_telegram_identity(self):
         source = FINAL_VERIFY.read_text(encoding="utf-8")
@@ -106,7 +122,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         self.assertIn('EXPECTED_BUILD = "133"', source)
         self.assertIn("CFBundleShortVersionString", source)
 
-    def test_materialized_verifier_rejects_glass_status_owner(self):
+    def test_materialized_verifier_rejects_glass_and_wrong_about_owner(self):
         source = VERIFY.read_text(encoding="utf-8")
         for token in (
             "verify_settings_owner",
@@ -114,6 +130,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
             "ItemListTextItem(",
             "systemStyle: .glass",
             "JerkgramReleaseIdentity",
+            "CFBundleShortVersionString",
             "1.0.2 Beta 1",
             "1.0.2-beta.1",
             "Telegram Base",
