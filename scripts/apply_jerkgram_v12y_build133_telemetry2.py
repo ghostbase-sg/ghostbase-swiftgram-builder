@@ -5,7 +5,7 @@ import os
 
 
 ROOT = Path(os.environ.get("JERKGRAM_SOURCE_ROOT", os.environ.get("GHOSTBASE_SOURCE_ROOT", str(Path.cwd())))).resolve()
-APP_DELEGATE = ROOT / "TelegramUI/Sources/AppDelegate.swift"
+APP_DELEGATE = ROOT / "submodules/TelegramUI/Sources/AppDelegate.swift"
 
 BASE_MARKER = "// MARK: Jerkgram v1.2T BUILD130_TELEMETRY1"
 MARKER = "// MARK: Jerkgram v1.2Y BUILD133_TELEMETRY_V2"
