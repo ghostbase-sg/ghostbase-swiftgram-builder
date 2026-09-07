@@ -22,8 +22,8 @@ def verify_settings_owner(text: str) -> None:
     require("ItemListTextItem(" in owner, "status/info is not Telegram native text")
     require("text: .plain(text)" in owner, "status/info is not plain text")
     require("ItemListDisclosureItem(" not in owner, "status/info still uses disclosure bubble")
-    require("systemStyle: .glass" not in owner, "status/info still uses glass bubble")
     require("style: .blocks" not in owner, "status/info still uses block/card styling")
+    require("systemStyle: .glass" not in text, "Jerkgram Settings still contains glass/bubble rows")
 
     for page in ("messages", "appearance", "about"):
         page_block = patch.block_text(text, f"if page == .{page} {{")
@@ -44,8 +44,8 @@ def verify_release_strings(text: str) -> None:
     require("Build 124 Canary" not in summary, "stale Build124 About summary survived")
 
     for token in (
-        'displayVersion = "1.0.2 Beta 1"',
-        'technicalVersion = "1.0.2-beta.1"',
+        'displayVersion = "1.0.2 Beta 2"',
+        'technicalVersion = "1.0.2-beta.2"',
         'build = "133"',
         'telegramBase = "12.9.2"',
         '"Jerkgram Version \\(displayVersion)\\nBuild \\(build)\\nTelegram Base \\(telegramBase)"',
@@ -59,7 +59,7 @@ def main() -> None:
     verify_settings_owner(SETTINGS.read_text(encoding="utf-8"))
     verify_release_strings(STRINGS.read_text(encoding="utf-8"))
     print("[Build133 release UI verify] PREFLIGHT GREEN")
-    print("[Build133 release UI verify] native .info + 1.0.2 Beta 1 / Build 133 / Telegram Base 12.9.2")
+    print("[Build133 release UI verify] flat native Settings + 1.0.2 Beta 2 / Build 133 / Telegram Base 12.9.2")
 
 
 if __name__ == "__main__":
