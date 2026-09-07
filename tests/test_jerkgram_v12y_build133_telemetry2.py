@@ -9,6 +9,7 @@ VERIFY = REPO / "scripts/verify_jerkgram_v12y_build133_telemetry2.py"
 
 
 APP_FIXTURE = r'''
+import Foundation
 // MARK: Jerkgram v1.2T BUILD130_TELEMETRY1
 private enum JerkgramTelemetryPreferences {
     static var isEnabled: Bool { true }
@@ -25,6 +26,7 @@ private final class JerkgramTelemetry {
     private func submitIfNeeded() {
         guard JerkgramTelemetryPreferences.isEnabled else { return }
         let defaults = UserDefaults.standard; let now = Date()
+        if let last = defaults.object(forKey: lastSuccessKey) as? Date, now.timeIntervalSince(last) < minimumInterval { return }
         guard activeTask == nil else { return }
         let secret = localSecret(defaults: defaults)
         let dayId=hmac(secret,"day")
@@ -46,6 +48,10 @@ private final class JerkgramTelemetry {
     }
     private func localSecret(defaults:UserDefaults)->[UInt8]{[]}
     private func hmac(_ key:[UInt8],_ value:String)->String{"id"}
+}
+@objc(AppDelegate) class AppDelegate {
+    func applicationDidEnterBackground(_ application: UIApplication) {
+    }
 }
 '''
 
@@ -88,12 +94,34 @@ class Build133TelemetryV2Tests(unittest.TestCase):
         updated = module.patch_app_delegate_text(APP_FIXTURE)
         for token in (
             'TimeZone(identifier: "Europe/Moscow")',
-            'jerkgram.telemetry.analyticsDay.v2',
-            'jerkgram.telemetry.openCountToday.v2',
+            'jerkgram.telemetry.opens.day',
+            'jerkgram.telemetry.opens.count',
             'recordOpen()',
-            'analyticsDayId=hmac(secret,"analytics-day:"+analyticsDay)',
+            'analyticsDayId=hmac(secret,"jerkgram-msk-day-v1:"+analyticsDay)',
         ):
             self.assertIn(token, updated)
+
+    def test_v2_1_preserves_full_payload_and_lifecycle_contract(self):
+        module = self.load_patch()
+        updated = module.patch_app_delegate_text(APP_FIXTURE)
+        for token in (
+            "BUILD133_TELEMETRY_V2_1",
+            '"deviceModel":model',
+            '"event":"app_active"',
+            '"ts":Int(now.timeIntervalSince1970)',
+            "lastAttemptAtKey",
+            "hasSeenActive",
+            "enteredBackground",
+            "applicationDidEnterBackground()",
+            "hardwareModel()",
+            "import Darwin",
+            "JerkgramTelemetry.shared.applicationDidEnterBackground()",
+        ):
+            self.assertIn(token, updated)
+
+        active = updated[updated.index("func applicationDidBecomeActive()"):]
+        self.assertLess(active.index("hasSeenActive"), active.index("recordOpen()"))
+        self.assertLess(active.index("recordOpen()"), active.index("submitIfNeeded()"))
 
     def test_materialized_verifier_checks_identity_privacy_and_v2_fields(self):
         source = VERIFY.read_text(encoding="utf-8")

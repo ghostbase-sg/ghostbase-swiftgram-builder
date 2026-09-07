@@ -25,6 +25,8 @@ SOURCE_ORDERED = (
     "verify_jerkgram_v12v_build133_settings1.py",
     "apply_jerkgram_v12x_build133_release_ui1.py",
     "verify_jerkgram_v12x_build133_release_ui1.py",
+    "apply_jerkgram_v12y_build133_telemetry2.py",
+    "verify_jerkgram_v12y_build133_telemetry2.py",
     "apply_jerkgram_v12w_build133_music_overlay1.py",
     "verify_jerkgram_v12w_build133_music_overlay1.py",
     "verify_jerkgram_v12w_build133_runtime_repair1.py",
@@ -50,15 +52,24 @@ def patch_probe(text: str) -> str:
     require(text.count(BUILD130_FINAL_ANCHOR) == 1, "Build130 final anchor count")
     require(text.count(BAZEL_ANCHOR) == 1, "Bazel anchor count")
 
+    source_payload = (
+        SOURCE_MARKER
+        + '\necho\necho "== Jerkgram Build134 runtime repair =="\n'
+        + "\n".join(line(name) for name in SOURCE_ORDERED)
+    )
     if SOURCE_MARKER not in text:
         require(all(text.count(name) == 0 for name in SOURCE_ORDERED), "partial preexisting Build133 source block")
         source_block = (
             BUILD130_SOURCE_ANCHOR
-            + "\n\n" + SOURCE_MARKER
-            + '\necho\necho "== Jerkgram Build134 runtime repair =="\n'
-            + "\n".join(line(name) for name in SOURCE_ORDERED)
+            + "\n\n" + source_payload
         )
         text = text.replace(BUILD130_SOURCE_ANCHOR, source_block, 1)
+    else:
+        source_start = text.index(SOURCE_MARKER)
+        end_mark = text.find("# END MARK:", source_start)
+        bazel_start = text.index(BAZEL_ANCHOR)
+        source_end = end_mark if 0 <= end_mark < bazel_start else bazel_start
+        text = text[:source_start] + source_payload + "\n" + text[source_end:]
 
     require(text.count(SOURCE_MARKER) == 1, "Build133 source marker count")
     source_positions = [text.index(name) for name in SOURCE_ORDERED]
@@ -91,7 +102,7 @@ def main() -> None:
     require(PROBE.is_file(), "probe missing: " + str(PROBE))
     PROBE.write_text(patch_probe(PROBE.read_text(encoding="utf-8")), encoding="utf-8")
     print("[Build134 probe hook] GREEN")
-    print("[Build134 probe hook] last-good Build130 telemetry -> reactions/activity/navigation -> Settings2 -> release UI Beta2 -> music -> final source gate -> Bazel")
+    print("[Build134 probe hook] Build130 telemetry baseline -> full Telemetry 2.1 -> reactions/activity/navigation -> Settings2 -> release UI Beta2 -> music -> final source gate -> Bazel")
 
 
 if __name__ == "__main__":

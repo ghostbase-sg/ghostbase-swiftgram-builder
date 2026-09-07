@@ -684,6 +684,8 @@ python3 ../../scripts/apply_jerkgram_v12v_build133_settings2.py
 python3 ../../scripts/verify_jerkgram_v12v_build133_settings1.py
 python3 ../../scripts/apply_jerkgram_v12x_build133_release_ui1.py
 python3 ../../scripts/verify_jerkgram_v12x_build133_release_ui1.py
+python3 ../../scripts/apply_jerkgram_v12y_build133_telemetry2.py
+python3 ../../scripts/verify_jerkgram_v12y_build133_telemetry2.py
 python3 ../../scripts/apply_jerkgram_v12w_build133_music_overlay1.py
 python3 ../../scripts/verify_jerkgram_v12w_build133_music_overlay1.py
 python3 ../../scripts/verify_jerkgram_v12w_build133_runtime_repair1.py
