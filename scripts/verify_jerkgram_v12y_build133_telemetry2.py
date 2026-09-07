@@ -7,7 +7,7 @@ import apply_jerkgram_v12y_build133_telemetry2 as patch
 
 
 ROOT = Path(os.environ.get("JERKGRAM_SOURCE_ROOT", os.environ.get("GHOSTBASE_SOURCE_ROOT", str(Path.cwd())))).resolve()
-APP_DELEGATE = ROOT / "TelegramUI/Sources/AppDelegate.swift"
+APP_DELEGATE = ROOT / "submodules/TelegramUI/Sources/AppDelegate.swift"
 STRINGS = ROOT / "submodules/TelegramPresentationData/Sources/JerkgramStrings.swift"
 
 
