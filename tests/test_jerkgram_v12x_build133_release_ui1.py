@@ -29,6 +29,34 @@ private func JerkgramSettingsStatusItem(
     )
 }
 
+private func build133SyntheticRenderer(
+    presentationData: ItemListPresentationData,
+    sectionId: ItemListSectionId
+) -> [ListViewItem] {
+    return [
+        ItemListSwitchItem(
+            presentationData: presentationData,
+            systemStyle: .glass,
+            title: "Messages toggle",
+            value: true,
+            sectionId: sectionId,
+            style: .blocks,
+            updated: { _ in }
+        ),
+        ItemListDisclosureItem(
+            presentationData: presentationData,
+            systemStyle: .glass,
+            title: "Appearance",
+            label: "",
+            labelStyle: .text,
+            sectionId: sectionId,
+            style: .blocks,
+            disclosureStyle: .arrow,
+            action: nil
+        )
+    ]
+}
+
 private func ghostBaseSettingsEntries(state: GhostBaseSettingsState, page: GhostBaseSettingsPage, strings: JerkgramStrings) -> [GhostBaseSettingsEntry] {
     if page == .messages {
         return [
@@ -78,7 +106,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         spec.loader.exec_module(module)
         return module
 
-    def test_status_info_returns_to_native_plain_text(self):
+    def test_status_info_returns_to_native_plain_text_and_all_settings_glass_is_removed(self):
         module = self.load_patch()
         updated = module.patch_settings_text(SETTINGS_FIXTURE)
         status = module.block_text(updated, "private func JerkgramSettingsStatusItem(")
@@ -87,6 +115,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         self.assertNotIn("ItemListDisclosureItem(", status)
         self.assertNotIn("systemStyle: .glass", status)
         self.assertNotIn("style: .blocks", status)
+        self.assertNotIn("systemStyle: .glass", updated)
         self.assertIn(".info(1, \"messages footer\")", updated)
         self.assertIn(".info(1, \"appearance footer\")", updated)
 
@@ -100,12 +129,12 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         self.assertNotIn("CFBundleShortVersionString", about)
         self.assertNotIn("CFBundleVersion", about)
 
-    def test_release_strings_hold_display_and_technical_identity(self):
+    def test_release_strings_hold_beta2_display_and_technical_identity(self):
         module = self.load_patch()
         updated = module.patch_strings_text(STRINGS_FIXTURE)
         for token in (
-            'displayVersion = "1.0.2 Beta 1"',
-            'technicalVersion = "1.0.2-beta.1"',
+            'displayVersion = "1.0.2 Beta 2"',
+            'technicalVersion = "1.0.2-beta.2"',
             'build = "133"',
             'telegramBase = "12.9.2"',
             '"Jerkgram Version \\(displayVersion)\\nBuild \\(build)\\nTelegram Base \\(telegramBase)"',
@@ -115,14 +144,15 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         self.assertIn("JerkgramReleaseIdentity.aboutText", summary)
         self.assertNotIn("Build 124 Canary", summary)
 
-    def test_final_ipa_contract_keeps_public_telegram_identity(self):
+    def test_final_ipa_contract_keeps_last_good_public_telegram_identity(self):
         source = FINAL_VERIFY.read_text(encoding="utf-8")
         self.assertIn('EXPECTED_BUNDLE = "ph.telegra.Telegraph"', source)
         self.assertIn('EXPECTED_TELEGRAM_VERSION = "12.9.2"', source)
         self.assertIn('EXPECTED_BUILD = "133"', source)
+        self.assertIn('EXPECTED_DISPLAY = "Jerkgram"', source)
         self.assertIn("CFBundleShortVersionString", source)
 
-    def test_materialized_verifier_rejects_glass_and_wrong_about_owner(self):
+    def test_materialized_verifier_rejects_any_settings_glass_and_wrong_about_owner(self):
         source = VERIFY.read_text(encoding="utf-8")
         for token in (
             "verify_settings_owner",
@@ -131,8 +161,8 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
             "systemStyle: .glass",
             "JerkgramReleaseIdentity",
             "CFBundleShortVersionString",
-            "1.0.2 Beta 1",
-            "1.0.2-beta.1",
+            "1.0.2 Beta 2",
+            "1.0.2-beta.2",
             "Telegram Base",
         ):
             self.assertIn(token, source)
