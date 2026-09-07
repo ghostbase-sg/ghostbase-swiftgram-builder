@@ -7,9 +7,9 @@ import sys
 import jerkgram_publish_build122_artifact as base
 
 
-base.EXPECTED_BUILD = "133"
-base.OUTPUT_IPA = Path("artifacts/Jerkgram-Build133.ipa")
-base.OUTPUT_INFO = Path("artifacts/Jerkgram-Build133-info.txt")
+base.EXPECTED_BUILD = "134"
+base.OUTPUT_IPA = Path("artifacts/Jerkgram-Build134.ipa")
+base.OUTPUT_INFO = Path("artifacts/Jerkgram-Build134-info.txt")
 FINAL_VERIFY = Path("scripts/verify_jerkgram_v12w_build133_final_ipa.py")
 
 
@@ -29,15 +29,15 @@ def main() -> None:
     verify(base.OUTPUT_IPA)
 
     info = base.OUTPUT_INFO.read_text(encoding="utf-8")
-    info = info.replace("Build=122", "Build=133")
+    info = info.replace("Build=122", "Build=134")
     info += (
-        "BundleID=ph.telegra.Telegraph\n"
+        "BundleID=com.jerkgram.ios\n"
         "TelegramVersion=12.9.2\n"
-        "JerkgramVersion=1.0.2 Beta 1\n"
-        "JerkgramTechnicalVersion=1.0.2-beta.1\n"
+        "JerkgramVersion=1.0.2 Beta 2\n"
+        "JerkgramTechnicalVersion=1.0.2-beta.2\n"
     )
     base.OUTPUT_INFO.write_text(info, encoding="utf-8")
-    print("[Build133 artifact] exact public identity verified before and after publication")
+    print("[Build134 artifact] exact public identity verified before and after publication")
 
 
 if __name__ == "__main__":

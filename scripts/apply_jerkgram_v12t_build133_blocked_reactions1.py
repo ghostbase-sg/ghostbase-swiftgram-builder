@@ -36,7 +36,7 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
-def filter_reaction_model(reactions, recent_peers, blocked_peer_ids, account_peer_id, enabled=True):
+def filter_reaction_model(reactions, recent_peers, blocked_peer_ids, account_peer_id, enabled=True, top_peers=()):
     """Pure contract model used by Build133 tests.
 
     reactions: [(value, count, is_own)]
@@ -66,6 +66,21 @@ def filter_reaction_model(reactions, recent_peers, blocked_peer_ids, account_pee
             item[1] = max(minimum, item[1] - 1)
             if item[1] == 0:
                 visible_reactions.pop(index)
+            break
+
+    # Telegram can omit an actor from recentPeers while still exposing that
+    # actor through topPeers. When there is only one reaction kind, the actor's
+    # aggregate count belongs unambiguously to that pill and can be removed.
+    if len(visible_reactions) == 1:
+        known_recent_ids = {peer_id for _, peer_id, _ in recent_peers if peer_id is not None}
+        for peer_id, count, is_own, is_anonymous in top_peers:
+            if peer_id in known_recent_ids or is_own or is_anonymous or peer_id not in blocked_peer_ids:
+                continue
+            item = visible_reactions[0]
+            minimum = 1 if item[2] else 0
+            item[1] = max(minimum, item[1] - count)
+            if item[1] == 0:
+                visible_reactions = []
             break
 
     return [tuple(item) for item in visible_reactions], visible_recent
@@ -169,10 +184,12 @@ public func jerkgramFilteredMessageReactions(
 
     var reactions = attribute.reactions
     var recentPeers: [ReactionsMessageAttribute.RecentPeer] = []
+    var removedPeerIds = Set<PeerId>()
 
     for recentPeer in attribute.recentPeers {
         let isOwn = recentPeer.isMy || recentPeer.peerId == accountPeerId
         if !isOwn && blockedPeerIds.contains(recentPeer.peerId) {
+            removedPeerIds.insert(recentPeer.peerId)
             if let index = reactions.firstIndex(where: { $0.value == recentPeer.value }) {
                 let current = reactions[index]
                 let minimumCount: Int32 = current.chosenOrder == nil ? 0 : 1
@@ -189,6 +206,29 @@ public func jerkgramFilteredMessageReactions(
             }
         } else {
             recentPeers.append(recentPeer)
+        }
+    }
+
+    // topPeers survives in cases where Telegram truncates recentPeers. A
+    // blocked top actor can be assigned safely only when one pill exists.
+    if reactions.count == 1 {
+        for item in attribute.topPeers {
+            guard let peerId = item.peerId,
+                  !item.isMy,
+                  !item.isAnonymous,
+                  blockedPeerIds.contains(peerId),
+                  !removedPeerIds.contains(peerId) else {
+                continue
+            }
+            let current = reactions[0]
+            let minimumCount: Int32 = current.chosenOrder == nil ? 0 : 1
+            let updatedCount = max(minimumCount, current.count - item.count)
+            if updatedCount == 0 {
+                reactions.removeAll()
+            } else {
+                reactions[0] = MessageReaction(value: current.value, count: updatedCount, chosenOrder: current.chosenOrder)
+            }
+            break
         }
     }
 

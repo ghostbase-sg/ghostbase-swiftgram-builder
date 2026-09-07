@@ -50,8 +50,6 @@ def visible_activity(*, stock, summary_count, loaded, blocked, enabled=True):
     if not enabled:
         return stock
     existing = [(actor, exists) for actor, exists in loaded if exists]
-    if len(existing) != summary_count:
-        return stock
     if summary_count <= 0:
         return False
     for actor, _ in existing:
@@ -166,15 +164,14 @@ private func jerkgramBuild133ActivityVisible(
     }
 
     let taggedMessages = messages.filter { $0.tags.contains(tag) }
-    guard taggedMessages.count == expectedCount else {
-        return stock
-    }
-
     for message in taggedMessages {
         if !hidden(accountPeerId, message) {
             return true
         }
     }
+    // A stale summary may count an entry already removed by blocked-message
+    // filtering. If every materialized target is hidden, do not expose a dead
+    // chat-list badge or navigation button.
     return false
 }
 

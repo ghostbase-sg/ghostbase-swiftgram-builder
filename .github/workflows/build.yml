@@ -1,4 +1,4 @@
-name: Jerkgram 12.9.2 Build133
+name: Jerkgram 12.9.2 Build134
 
 on:
   workflow_dispatch:
@@ -207,8 +207,10 @@ jobs:
           python3 -m unittest tests.test_jerkgram_v12u_build133_blocked_activity1
           python3 -m unittest tests.test_jerkgram_v12v_build133_settings1
           python3 -m unittest tests.test_jerkgram_v12w_build133_music_overlay1
+          python3 -m unittest tests.test_jerkgram_v12x_build133_release_ui1
+          python3 -m unittest tests.test_jerkgram_build134_release_contract
 
-          # Canonical materialization chain. Build133 root installer delegates
+          # Canonical materialization chain. The legacy-named root installer delegates
           # to Build130/Build125, then appends v12t/v12u/v12v/v12w before Bazel.
           python3 scripts/install_jerkgram_v12d_build115_probe_hook.py
           python3 scripts/install_jerkgram_v12e_build116_probe_hook.py
@@ -256,18 +258,18 @@ jobs:
             work/swiftgram-src/submodules/TelegramUI/Sources/OverlayAudioPlayerControllerNode.swift
           if-no-files-found: warn
 
-      - name: Publish Jerkgram Build133 artifact
+      - name: Publish Jerkgram Build134 artifact
         if: success()
         run: |
           set -e
           python3 scripts/jerkgram_publish_build133_artifact.py
 
-      - name: Upload Jerkgram Build133
+      - name: Upload Jerkgram Build134
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Jerkgram-Build133
+          name: Jerkgram-Build134
           path: |
-            artifacts/Jerkgram-Build133.ipa
-            artifacts/Jerkgram-Build133-info.txt
+            artifacts/Jerkgram-Build134.ipa
+            artifacts/Jerkgram-Build134-info.txt
           if-no-files-found: error

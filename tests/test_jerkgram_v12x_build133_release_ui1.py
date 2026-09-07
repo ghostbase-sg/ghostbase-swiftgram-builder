@@ -106,7 +106,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         spec.loader.exec_module(module)
         return module
 
-    def test_status_info_returns_to_native_plain_text_and_all_settings_glass_is_removed(self):
+    def test_status_is_plain_switches_are_flat_and_destination_buttons_keep_rounding(self):
         module = self.load_patch()
         updated = module.patch_settings_text(SETTINGS_FIXTURE)
         status = module.block_text(updated, "private func JerkgramSettingsStatusItem(")
@@ -115,7 +115,10 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         self.assertNotIn("ItemListDisclosureItem(", status)
         self.assertNotIn("systemStyle: .glass", status)
         self.assertNotIn("style: .blocks", status)
-        self.assertNotIn("systemStyle: .glass", updated)
+        renderer = module.block_text(updated, "private func build133SyntheticRenderer(")
+        switch_owner, disclosure_owner = renderer.split("ItemListDisclosureItem(", 1)
+        self.assertNotIn("systemStyle: .glass", switch_owner)
+        self.assertIn("systemStyle: .glass", disclosure_owner)
         self.assertIn(".info(1, \"messages footer\")", updated)
         self.assertIn(".info(1, \"appearance footer\")", updated)
 
@@ -135,7 +138,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         for token in (
             'displayVersion = "1.0.2 Beta 2"',
             'technicalVersion = "1.0.2-beta.2"',
-            'build = "133"',
+            'build = "134"',
             'telegramBase = "12.9.2"',
             '"Jerkgram Version \\(displayVersion)\\nBuild \\(build)\\nTelegram Base \\(telegramBase)"',
         ):
@@ -146,9 +149,9 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
 
     def test_final_ipa_contract_keeps_last_good_public_telegram_identity(self):
         source = FINAL_VERIFY.read_text(encoding="utf-8")
-        self.assertIn('EXPECTED_BUNDLE = "ph.telegra.Telegraph"', source)
+        self.assertIn('EXPECTED_BUNDLE = "com.jerkgram.ios"', source)
         self.assertIn('EXPECTED_TELEGRAM_VERSION = "12.9.2"', source)
-        self.assertIn('EXPECTED_BUILD = "133"', source)
+        self.assertIn('EXPECTED_BUILD = "134"', source)
         self.assertIn('EXPECTED_DISPLAY = "Jerkgram"', source)
         self.assertIn("CFBundleShortVersionString", source)
 

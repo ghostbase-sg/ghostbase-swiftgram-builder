@@ -92,6 +92,18 @@ class Build133BlockedReactionContracts(unittest.TestCase):
         self.assertEqual(reactions, [("👍", 1, False)])
         self.assertEqual(recent, [("👍", None, False)])
 
+    def test_blocked_actor_known_only_from_top_peers_removes_pill(self):
+        reactions, recent = self.patch.filter_reaction_model(
+            reactions=[("👍", 1, False)],
+            recent_peers=[],
+            top_peers=[("A", 1, False, False)],
+            blocked_peer_ids={"A"},
+            account_peer_id="ME",
+            enabled=True,
+        )
+        self.assertEqual(reactions, [])
+        self.assertEqual(recent, [])
+
     def test_verifier_contract_exists(self):
         verify = self.load(VERIFY, "build133_blocked_reactions_verify")
         self.assertTrue(callable(verify.verify_policy_source))

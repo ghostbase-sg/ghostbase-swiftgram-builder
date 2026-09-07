@@ -672,6 +672,21 @@ echo
 echo "== Jerkgram v1.2S Build130 Siri runtime fail-closed =="
 python3 ../../scripts/apply_jerkgram_v12s_build130_siri_failclosed1.py
 python3 ../../scripts/verify_jerkgram_v12s_build130_siri_failclosed1.py
+
+# JERKGRAM_V12W_BUILD133_RUNTIME_REPAIR_HOOK
+echo
+echo "== Jerkgram Build134 runtime repair =="
+python3 ../../scripts/apply_jerkgram_v12t_build133_blocked_reactions1.py
+python3 ../../scripts/verify_jerkgram_v12t_build133_blocked_reactions1.py
+python3 ../../scripts/apply_jerkgram_v12u_build133_blocked_activity2.py
+python3 ../../scripts/verify_jerkgram_v12u_build133_blocked_activity1.py
+python3 ../../scripts/apply_jerkgram_v12v_build133_settings2.py
+python3 ../../scripts/verify_jerkgram_v12v_build133_settings1.py
+python3 ../../scripts/apply_jerkgram_v12x_build133_release_ui1.py
+python3 ../../scripts/verify_jerkgram_v12x_build133_release_ui1.py
+python3 ../../scripts/apply_jerkgram_v12w_build133_music_overlay1.py
+python3 ../../scripts/verify_jerkgram_v12w_build133_music_overlay1.py
+python3 ../../scripts/verify_jerkgram_v12w_build133_runtime_repair1.py
 # END MARK: GhostBase v1.1G unified recovery
 "$BAZEL_BIN" build ${BAZEL_EXTRA_ARGS:-} \
   --enable_workspace \
@@ -812,3 +827,9 @@ echo
 echo "== Jerkgram Build130 final identity =="
 python3 ../../scripts/jerkgram_finalize_build130_identity.py ghostbase-final/GhostBase.ipa
 python3 ../../scripts/verify_jerkgram_v12s_build130_final_ipa.py ghostbase-final/GhostBase.ipa
+
+# JERKGRAM_V12W_BUILD133_FINAL_IDENTITY_HOOK
+echo
+echo "== Jerkgram Build134 final identity =="
+python3 ../../scripts/jerkgram_finalize_build133_identity.py ghostbase-final/GhostBase.ipa
+python3 ../../scripts/verify_jerkgram_v12w_build133_final_ipa.py ghostbase-final/GhostBase.ipa

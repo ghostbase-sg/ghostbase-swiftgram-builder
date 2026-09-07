@@ -64,8 +64,8 @@ class Build133BlockedActivityContracts(unittest.TestCase):
             )
         )
 
-    def test_chat_list_activity_preserves_stock_if_loaded_evidence_incomplete(self):
-        self.assertTrue(
+    def test_chat_list_activity_hides_stale_summary_if_loaded_targets_are_blocked(self):
+        self.assertFalse(
             self.patch.visible_activity(
                 stock=True,
                 summary_count=2,

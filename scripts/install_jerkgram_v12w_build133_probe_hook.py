@@ -25,8 +25,6 @@ SOURCE_ORDERED = (
     "verify_jerkgram_v12v_build133_settings1.py",
     "apply_jerkgram_v12x_build133_release_ui1.py",
     "verify_jerkgram_v12x_build133_release_ui1.py",
-    "apply_jerkgram_v12y_build133_telemetry2.py",
-    "verify_jerkgram_v12y_build133_telemetry2.py",
     "apply_jerkgram_v12w_build133_music_overlay1.py",
     "verify_jerkgram_v12w_build133_music_overlay1.py",
     "verify_jerkgram_v12w_build133_runtime_repair1.py",
@@ -57,7 +55,7 @@ def patch_probe(text: str) -> str:
         source_block = (
             BUILD130_SOURCE_ANCHOR
             + "\n\n" + SOURCE_MARKER
-            + '\necho\necho "== Jerkgram v1.2T-Y Build133 runtime repair =="\n'
+            + '\necho\necho "== Jerkgram Build134 runtime repair =="\n'
             + "\n".join(line(name) for name in SOURCE_ORDERED)
         )
         text = text.replace(BUILD130_SOURCE_ANCHOR, source_block, 1)
@@ -74,7 +72,7 @@ def patch_probe(text: str) -> str:
         final_block = (
             BUILD130_FINAL_ANCHOR
             + "\n\n" + FINAL_MARKER
-            + '\necho\necho "== Jerkgram Build133 final identity =="\n'
+            + '\necho\necho "== Jerkgram Build134 final identity =="\n'
             + "\n".join(line(name, "ghostbase-final/GhostBase.ipa") for name in FINAL_ORDERED)
         )
         text = text.replace(BUILD130_FINAL_ANCHOR, final_block, 1)
@@ -92,8 +90,8 @@ def main() -> None:
     subprocess.check_call([sys.executable, str(BASE_INSTALLER)])
     require(PROBE.is_file(), "probe missing: " + str(PROBE))
     PROBE.write_text(patch_probe(PROBE.read_text(encoding="utf-8")), encoding="utf-8")
-    print("[Build133 probe hook] GREEN")
-    print("[Build133 probe hook] last-good Build130 -> reactions -> activity2/navigation -> Settings2 -> release UI Beta2 -> Telemetry v2 -> music -> final source gate -> Bazel")
+    print("[Build134 probe hook] GREEN")
+    print("[Build134 probe hook] last-good Build130 telemetry -> reactions/activity/navigation -> Settings2 -> release UI Beta2 -> music -> final source gate -> Bazel")
 
 
 if __name__ == "__main__":
