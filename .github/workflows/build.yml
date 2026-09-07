@@ -263,7 +263,7 @@ jobs:
         if: success()
         run: |
           set -e
-          python3 scripts/jerkgram_publish_build133_artifact.py
+          python3 scripts/jerkgram_publish_build134_artifact.py
 
       - name: Upload Jerkgram Build134
         if: success()
