@@ -128,6 +128,24 @@ func layout(item: Item, firstMessage: Message) {
         self.assertIn("presentationUpdates", self.patch.POLICY_SOURCE)
         self.assertIn("notifySettingsChanged", self.patch.POLICY_SOURCE)
 
+    def test_blocked_reaction_filter_is_group_only(self):
+        scope = getattr(self.patch, "is_group_chat_kind", None)
+        self.assertTrue(callable(scope), "group-only scope model is missing")
+        self.assertTrue(scope("group"))
+        self.assertTrue(scope("supergroup"))
+        self.assertFalse(scope("private"))
+        self.assertFalse(scope("secret"))
+        self.assertFalse(scope("channel"))
+
+        reactions = [("heart", 1, False)]
+        recent = [("heart", "A", False)]
+        self.assertEqual(
+            self.patch.filter_reaction_model(
+                reactions, recent, {"A"}, "ME", enabled=True, chat_kind="private"
+            ),
+            (reactions, recent),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

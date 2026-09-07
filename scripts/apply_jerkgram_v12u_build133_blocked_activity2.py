@@ -40,6 +40,7 @@ def replacement(indent: str) -> str:
         f"{indent}let hasVisibleUnseenReaction = attributes.compactMap {{ $0 as? ReactionsMessageAttribute }}.contains(where: {{\n"
         f"{indent}    JerkgramBlockedReactionPolicy.hasVisibleUnseenReaction(\n"
         f"{indent}        accountPeerId: account.peerId,\n"
+        f"{indent}        message: currentMessage,\n"
         f"{indent}        attribute: $0\n"
         f"{indent}    )\n"
         f"{indent}}})\n"

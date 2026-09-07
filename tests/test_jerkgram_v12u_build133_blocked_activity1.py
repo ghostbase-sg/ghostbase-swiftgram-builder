@@ -1,4 +1,5 @@
 import importlib.util
+import inspect
 from pathlib import Path
 import sys
 import unittest
@@ -42,6 +43,26 @@ class Build133BlockedActivityContracts(unittest.TestCase):
         targets = [(1, None, True)]
         self.assertEqual(self.patch.visible_navigation_target(targets, {"A"}, enabled=True), 1)
 
+    def test_private_chat_navigation_and_activity_remain_stock(self):
+        self.assertIn("chat_kind", inspect.signature(self.patch.visible_navigation_target).parameters)
+        self.assertIn("chat_kind", inspect.signature(self.patch.visible_activity).parameters)
+        self.assertEqual(
+            self.patch.visible_navigation_target(
+                [(1, "A", True)], {"A"}, enabled=True, chat_kind="private"
+            ),
+            1,
+        )
+        self.assertTrue(
+            self.patch.visible_activity(
+                stock=True,
+                summary_count=1,
+                loaded=[("A", True)],
+                blocked={"A"},
+                enabled=True,
+                chat_kind="private",
+            )
+        )
+
     def test_chat_history_removes_blocked_authors_when_enabled(self):
         self.assertTrue(callable(getattr(self.patch, "visible_chat_messages", None)))
         messages = [(1, "A"), (2, "B"), (3, "ME")]
@@ -55,6 +76,26 @@ class Build133BlockedActivityContracts(unittest.TestCase):
         messages = [(1, "A"), (2, "B")]
         self.assertEqual(
             self.patch.visible_chat_messages(messages, {"A"}, account="ME", enabled=False),
+            messages,
+        )
+
+    def test_chat_history_never_filters_private_or_broadcast_chats(self):
+        messages = [(1, "A"), (2, "B")]
+        self.assertIn(
+            "chat_kind",
+            inspect.signature(self.patch.visible_chat_messages).parameters,
+            "chat history scope is not explicit",
+        )
+        self.assertEqual(
+            self.patch.visible_chat_messages(
+                messages, {"A"}, account="ME", enabled=True, chat_kind="private"
+            ),
+            messages,
+        )
+        self.assertEqual(
+            self.patch.visible_chat_messages(
+                messages, {"A"}, account="ME", enabled=True, chat_kind="channel"
+            ),
             messages,
         )
 

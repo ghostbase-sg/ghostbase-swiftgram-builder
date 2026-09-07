@@ -94,6 +94,8 @@ def verify_policy(text: str) -> None:
     require("public static func hideBlockedMessages(" in text, "hideBlockedMessages policy missing")
     require("public static func isMessageHidden(" in text, "message visibility policy missing")
     require("public static func hasVisibleUnseenReaction(" in text, "unseen reaction policy missing")
+    require("guard self.isGroupMessage(message) else" in text, "activity policy is not group-only")
+    require("return attribute.hasUnseen" in text, "private/channel reaction activity is not stock")
     require("if !sawUnseen {" in text and "return true" in text, "unknown reaction evidence fallback missing")
     require("blockedPeerIdsByAccount" in text, "shared v12t blocked cache missing")
 
@@ -104,6 +106,8 @@ def verify_store_owner(text: str) -> None:
     require("tags.remove(.unseenPersonalMessage)" in text, "mention tag suppression missing")
     require("tags.remove(.unseenReaction)" in text, "reaction tag suppression missing")
     require(text.count("let (jerkgramBuild133RawTags, globalTags) = tagsForStoreMessage(") == 2, "StoreMessage call sites not both patched")
+    require(text.count("chatPeerId: peerId") == 2, "StoreMessage chat scope is not bound")
+    require("chatPeerId.namespace == Namespaces.Peer.CloudGroup" in text, "StoreMessage can alter private/channel tags")
 
 
 def verify_refresh_owners(tracker: str, delete_messages: str) -> None:
@@ -113,6 +117,7 @@ def verify_refresh_owners(tracker: str, delete_messages: str) -> None:
         "AccountViewTracker still uses raw hasUnseen",
     )
     require("if updatedReactions.hasUnseen {" not in tracker, "AccountViewTracker raw unseen owner survived")
+    require("message: currentMessage" in tracker, "AccountViewTracker has no chat scope")
 
     require(delete_messages.count(DELETE_MARKER) == 2, "DeleteMessages two-owner marker count")
     require(
@@ -123,12 +128,13 @@ def verify_refresh_owners(tracker: str, delete_messages: str) -> None:
         "attributes.contains(where: { ($0 as? ReactionsMessageAttribute)?.hasUnseen == true })" not in delete_messages,
         "DeleteMessages raw unseen owner survived",
     )
+    require(delete_messages.count("message: currentMessage") == 2, "DeleteMessages owners have no chat scope")
 
 
 def verify_chat_history_owners(entries: str, history_list: str) -> None:
     require(entries.count(HISTORY_ENTRIES_MARKER) == 1, "chat history message-filter marker count")
     require("JerkgramBlockedReactionPolicy.isMessageHidden(" in entries, "chat history does not filter blocked message authors")
-    require("authorId: message.author?.id" in entries, "chat history author binding missing")
+    require("message: message" in entries, "chat history chat/author binding missing")
     require(entries.index("JerkgramBlockedReactionPolicy.isMessageHidden(") < entries.index("count += 1"), "blocked message is counted before filtering")
 
     require(history_list.count(HISTORY_REFRESH_MARKER) == 1, "chat history visibility-refresh marker count")

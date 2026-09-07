@@ -38,20 +38,20 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
-def visible_navigation_target(targets, blocked, enabled=True):
+def visible_navigation_target(targets, blocked, enabled=True, chat_kind="group"):
     for target_id, actor, exists in targets:
         if not exists:
             continue
-        if enabled and actor is not None and actor in blocked:
+        if chat_kind in ("group", "supergroup") and enabled and actor is not None and actor in blocked:
             continue
         return target_id
     return None
 
 
-def visible_activity(*, stock, summary_count, loaded, blocked, enabled=True):
+def visible_activity(*, stock, summary_count, loaded, blocked, enabled=True, chat_kind="group"):
     if not stock:
         return False
-    if not enabled:
+    if chat_kind not in ("group", "supergroup") or not enabled:
         return stock
     existing = [(actor, exists) for actor, exists in loaded if exists]
     if summary_count <= 0:
@@ -62,8 +62,8 @@ def visible_activity(*, stock, summary_count, loaded, blocked, enabled=True):
     return False
 
 
-def visible_chat_messages(messages, blocked, *, account, enabled=True):
-    if not enabled:
+def visible_chat_messages(messages, blocked, *, account, enabled=True, chat_kind="group"):
+    if chat_kind not in ("group", "supergroup") or not enabled:
         return list(messages)
     return [item for item in messages if item[1] == account or item[1] not in blocked]
 
@@ -82,17 +82,21 @@ POLICY_EXTENSION = r'''
         return true
     }
 
-    public static func isMessageHidden(accountPeerId: PeerId, authorId: PeerId?) -> Bool {
+    public static func isMessageHidden(accountPeerId: PeerId, message: Message) -> Bool {
+        guard self.isGroupMessage(message) else {
+            return false
+        }
         guard self.hideBlockedMessages(accountPeerId: accountPeerId) else {
             return false
         }
+        let authorId = message.author?.id
         guard let authorId, authorId != accountPeerId else {
             return false
         }
         return self.isBlocked(accountPeerId: accountPeerId, peerId: authorId)
     }
 
-    public static func hasVisibleUnseenReaction(
+    public static func hasVisibleUnseenReactionInGroup(
         accountPeerId: PeerId,
         attribute: ReactionsMessageAttribute
     ) -> Bool {
@@ -119,6 +123,20 @@ POLICY_EXTENSION = r'''
         }
         return false
     }
+
+    public static func hasVisibleUnseenReaction(
+        accountPeerId: PeerId,
+        message: Message,
+        attribute: ReactionsMessageAttribute
+    ) -> Bool {
+        guard self.isGroupMessage(message) else {
+            return attribute.hasUnseen
+        }
+        return self.hasVisibleUnseenReactionInGroup(
+            accountPeerId: accountPeerId,
+            attribute: attribute
+        )
+    }
 '''
 
 
@@ -127,23 +145,32 @@ STORE_HELPER = r'''
 // MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_STORE1
 private func jerkgramBuild133FilteredActivityTags(
     accountPeerId: PeerId,
+    chatPeerId: PeerId,
     authorId: PeerId?,
     attributes: [MessageAttribute],
     tags: MessageTags
 ) -> MessageTags {
     var tags = tags
 
+    // Api.Message does not carry the TelegramChannelInfo required to
+    // distinguish a supergroup from a broadcast channel. Filter only legacy
+    // groups here; supergroups are filtered later where the full Message peer
+    // is available. Private chats and broadcast channels remain stock.
+    guard chatPeerId.namespace == Namespaces.Peer.CloudGroup else {
+        return tags
+    }
+
     if tags.contains(.unseenPersonalMessage),
-       JerkgramBlockedReactionPolicy.isMessageHidden(
-            accountPeerId: accountPeerId,
-            authorId: authorId
-       ) {
+       JerkgramBlockedReactionPolicy.hideBlockedMessages(accountPeerId: accountPeerId),
+       let authorId,
+       authorId != accountPeerId,
+       JerkgramBlockedReactionPolicy.isBlocked(accountPeerId: accountPeerId, peerId: authorId) {
         tags.remove(.unseenPersonalMessage)
     }
 
     if tags.contains(.unseenReaction),
        let attribute = attributes.first(where: { $0 is ReactionsMessageAttribute }) as? ReactionsMessageAttribute,
-       !JerkgramBlockedReactionPolicy.hasVisibleUnseenReaction(
+       !JerkgramBlockedReactionPolicy.hasVisibleUnseenReactionInGroup(
             accountPeerId: accountPeerId,
             attribute: attribute
        ) {
@@ -191,7 +218,7 @@ private func jerkgramBuild133ReactionActivityHidden(
 ) -> Bool {
     if JerkgramBlockedReactionPolicy.isMessageHidden(
         accountPeerId: accountPeerId,
-        authorId: message.author?.id
+        message: message
     ) {
         return true
     }
@@ -200,6 +227,7 @@ private func jerkgramBuild133ReactionActivityHidden(
     }
     return !JerkgramBlockedReactionPolicy.hasVisibleUnseenReaction(
         accountPeerId: accountPeerId,
+        message: message,
         attribute: attribute
     )
 }
@@ -221,7 +249,7 @@ private func jerkgramBuild133IsNavigableUnseenTarget(
 ) -> Bool {
     if JerkgramBlockedReactionPolicy.isMessageHidden(
         accountPeerId: accountPeerId,
-        authorId: message.author?.id
+        message: message
     ) {
         return false
     }
@@ -235,6 +263,7 @@ private func jerkgramBuild133IsNavigableUnseenTarget(
         }
         return JerkgramBlockedReactionPolicy.hasVisibleUnseenReaction(
             accountPeerId: accountPeerId,
+            message: message,
             attribute: attribute
         )
     }
@@ -303,6 +332,7 @@ def patch_store_message(text: str) -> str:
             f"{indent}let (jerkgramBuild133RawTags, globalTags) = tagsForStoreMessage({args})\n"
             f"{indent}let tags = jerkgramBuild133FilteredActivityTags(\n"
             f"{indent}    accountPeerId: accountPeerId,\n"
+            f"{indent}    chatPeerId: peerId,\n"
             f"{indent}    authorId: authorId,\n"
             f"{indent}    attributes: attributes,\n"
             f"{indent}    tags: jerkgramBuild133RawTags\n"
@@ -328,6 +358,7 @@ def patch_account_view_tracker(text: str) -> str:
                                                     var tags = currentMessage.tags
                                                     if JerkgramBlockedReactionPolicy.hasVisibleUnseenReaction(
                                                         accountPeerId: account.peerId,
+                                                        message: currentMessage,
                                                         attribute: updatedReactions
                                                     ) {
                                                         tags.insert(.unseenReaction)
@@ -353,6 +384,7 @@ def patch_delete_messages(text: str) -> str:
                 let hasVisibleUnseenReaction = attributes.compactMap { $0 as? ReactionsMessageAttribute }.contains(where: {
                     JerkgramBlockedReactionPolicy.hasVisibleUnseenReaction(
                         accountPeerId: account.peerId,
+                        message: currentMessage,
                         attribute: $0
                     )
                 })
@@ -398,7 +430,7 @@ def patch_chat_list(text: str) -> str:
                     hidden: { accountPeerId, message in
                         JerkgramBlockedReactionPolicy.isMessageHidden(
                             accountPeerId: accountPeerId,
-                            authorId: message.author?.id
+                            message: message
                         )
                     }
                 )
@@ -496,7 +528,7 @@ def patch_chat_history_entries(text: str) -> str:
         // switching the option off restores the messages immediately.
         if JerkgramBlockedReactionPolicy.isMessageHidden(
             accountPeerId: context.account.peerId,
-            authorId: message.author?.id
+            message: message
         ) {
             continue loop
         }

@@ -42,12 +42,17 @@ def verify_policy_source(text: str) -> None:
     require("return true" in text, "default blocked reaction policy missing")
     require("public static var presentationUpdates:" in text, "live presentation update signal missing")
     require("public static func notifySettingsChanged()" in text, "settings refresh bridge missing")
+    require("public static func isGroupChat(_ peer: Peer?)" in text, "group-only scope owner missing")
+    require("peer is TelegramGroup" in text, "legacy group scope missing")
+    require("case .group = channel.info" in text, "supergroup scope missing")
     require("network.request" not in text[text.index(POLICY_MARKER):text.index("public final class BlockedPeersContext {")], "policy must not issue per-item network requests")
 
 
 def verify_reaction_owner(text: str) -> None:
     require(text.count(ATTRIBUTE_MARKER) == 1, "aggregate marker count != 1")
     require("public func jerkgramFilteredMessageReactions(" in text, "filtered aggregate helper missing")
+    require("message: Message" in text, "reaction filter has no chat context")
+    require("JerkgramBlockedReactionPolicy.isGroupMessage(message)" in text, "reaction filter is not group-only")
     require("blockedPeerIds.contains(recentPeer.peerId)" in text, "known blocked actor membership check missing")
     require("recentPeer.isMy || recentPeer.peerId == accountPeerId" in text, "own-reaction preservation missing")
     require("if item.isMy || item.isAnonymous" in text, "anonymous/own top reactor preservation missing")
@@ -63,6 +68,7 @@ def verify_list_owner(text: str) -> None:
     require("jerkgramFilteredMessageReactions(" in text, "initial details state is not filtered")
     require("accountPeerId: account.peerId" in text, "details context does not bind active account")
     require("JerkgramBlockedReactionPolicy.isBlocked(" in text, "network details page does not filter blocked peers")
+    require("JerkgramBlockedReactionPolicy.isGroupMessage(message._asMessage())" in text, "network reaction list is not group-only")
     require("blockedItemsOnPage += 1" in text, "filtered page count accounting missing")
     require("let visibleTotalCount = max(0, Int(count) - blockedItemsOnPage)" in text, "details total count is not adjusted")
     require("items.count != totalCount" in text, "stock consistency gate disappeared")
@@ -77,11 +83,13 @@ def verify_account_owner(text: str) -> None:
 def verify_ui_owner(text: str, name: str) -> None:
     require(text.count(UI_MARKER) == 1, f"{name}: UI marker count != 1")
     require("jerkgramVisibleMessageReactions(accountPeerId:" in text, f"{name}: direct reaction presentation bypasses policy")
+    require("message: item.message" in text, f"{name}: reaction presentation has no chat context")
 
 
 def verify_bubble_ui_owner(text: str) -> None:
     require(text.count(BUBBLE_UI_MARKER) == 1, "standard bubble UI marker count != 1")
     require(text.count("jerkgramVisibleMessageReactions(accountPeerId:") == 2, "standard bubble does not filter both visual reaction owners")
+    require("message: firstMessage" in text and "message: item.message" in text, "standard bubble reaction owners have no chat context")
     require("= mergedMessageReactions(attributes:" not in text, "standard bubble raw reaction presentation survived")
 
 

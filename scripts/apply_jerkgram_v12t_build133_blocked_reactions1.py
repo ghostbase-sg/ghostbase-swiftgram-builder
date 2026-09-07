@@ -38,13 +38,17 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
-def filter_reaction_model(reactions, recent_peers, blocked_peer_ids, account_peer_id, enabled=True, top_peers=()):
+def is_group_chat_kind(chat_kind):
+    return chat_kind in ("group", "supergroup")
+
+
+def filter_reaction_model(reactions, recent_peers, blocked_peer_ids, account_peer_id, enabled=True, top_peers=(), chat_kind="group"):
     """Pure contract model used by Build133 tests.
 
     reactions: [(value, count, is_own)]
     recent_peers: [(value, peer_id|None, is_own)]
     """
-    if not enabled or not blocked_peer_ids:
+    if not is_group_chat_kind(chat_kind) or not enabled or not blocked_peer_ids:
         return list(reactions), list(recent_peers)
 
     visible_reactions = [list(item) for item in reactions]
@@ -143,6 +147,20 @@ public enum JerkgramBlockedReactionPolicy {
         }
     }
 
+    public static func isGroupChat(_ peer: Peer?) -> Bool {
+        if peer is TelegramGroup {
+            return true
+        }
+        if let channel = peer as? TelegramChannel, case .group = channel.info {
+            return true
+        }
+        return false
+    }
+
+    public static func isGroupMessage(_ message: Message) -> Bool {
+        return self.isGroupChat(message.peers[message.id.peerId])
+    }
+
     public static func hideBlockedReactions(accountPeerId: PeerId) -> Bool {
         let defaults = UserDefaults.standard
         let scopedKey = "jerkgram.account.\(accountPeerId.toInt64()).setting.\(self.hideBlockedReactionsKey)"
@@ -195,10 +213,14 @@ ATTRIBUTE_HELPER = r'''
 // mutated, so disabling the feature restores stock state immediately.
 public func jerkgramFilteredMessageReactions(
     accountPeerId: EnginePeer.Id,
+    message: Message,
     attribute: ReactionsMessageAttribute?
 ) -> ReactionsMessageAttribute? {
     guard let attribute else {
         return nil
+    }
+    guard JerkgramBlockedReactionPolicy.isGroupMessage(message) else {
+        return attribute
     }
     guard JerkgramBlockedReactionPolicy.hideBlockedReactions(accountPeerId: accountPeerId) else {
         return attribute
@@ -282,12 +304,12 @@ public func jerkgramFilteredMessageReactions(
 
 public func jerkgramVisibleMessageReactions(
     accountPeerId: EnginePeer.Id,
-    attributes: [MessageAttribute],
-    isTags: Bool
+    message: Message
 ) -> ReactionsMessageAttribute? {
     return jerkgramFilteredMessageReactions(
         accountPeerId: accountPeerId,
-        attribute: mergedMessageReactions(attributes: attributes, isTags: isTags)
+        message: message,
+        attribute: mergedMessageReactions(attributes: message.attributes, isTags: message.areReactionsTags(accountPeerId: accountPeerId))
     )
 }
 '''
@@ -367,7 +389,7 @@ def patch_reaction_attribute(text: str) -> str:
     text = text.replace(insert_anchor, ATTRIBUTE_HELPER + insert_anchor, 1)
 
     old_guard = '''    guard let attribute = mergedMessageReactions(attributes: message.attributes, isTags: message.areReactionsTags(accountPeerId: accountPeerId)) else {'''
-    new_guard = '''    guard let attribute = jerkgramVisibleMessageReactions(accountPeerId: accountPeerId, attributes: message.attributes, isTags: message.areReactionsTags(accountPeerId: accountPeerId)) else {'''
+    new_guard = '''    guard let attribute = jerkgramVisibleMessageReactions(accountPeerId: accountPeerId, message: message) else {'''
     text = replace_once(text, old_guard, new_guard, "merged reactions presentation guard")
     return text
 
@@ -390,6 +412,7 @@ public extension EngineMessageReactionListContext.State {
         if let accountPeerId {
             reactionsAttribute = jerkgramFilteredMessageReactions(
                 accountPeerId: accountPeerId,
+                message: message._asMessage(),
                 attribute: message._asMessage().reactionsAttribute
             )
         } else {
@@ -417,7 +440,8 @@ public extension EngineMessageReactionListContext.State {
                             return InternalState(hasOutgoingReaction: false, totalCount: Int(count), items: items, canLoadMore: nextOffset != nil, nextOffset: nextOffset)'''
     new_items = '''                            var items: [EngineMessageReactionListContext.Item] = []
                             var blockedItemsOnPage = 0
-                            let filterBlocked = JerkgramBlockedReactionPolicy.hideBlockedReactions(accountPeerId: accountPeerId)
+                            let filterBlocked = JerkgramBlockedReactionPolicy.isGroupMessage(message._asMessage())
+                                && JerkgramBlockedReactionPolicy.hideBlockedReactions(accountPeerId: accountPeerId)
                             for reaction in reactions {
                                 switch reaction {
                                 case let .messagePeerReaction(messagePeerReactionData):
@@ -445,7 +469,7 @@ def patch_direct_ui_owner(text: str, path: Path) -> str:
     old = "mergedMessageReactions(attributes: item.message.attributes, isTags: item.message.areReactionsTags(accountPeerId: item.context.account.peerId))"
     count = text.count(old)
     require(count == 1, f"{path.name}: expected one direct presentation call, found {count}")
-    new = "jerkgramVisibleMessageReactions(accountPeerId: item.context.account.peerId, attributes: item.message.attributes, isTags: item.message.areReactionsTags(accountPeerId: item.context.account.peerId))"
+    new = "jerkgramVisibleMessageReactions(accountPeerId: item.context.account.peerId, message: item.message)"
     text = text.replace(old, new, 1)
 
     import_anchor = "import TelegramCore\n"
@@ -462,11 +486,11 @@ def patch_bubble_ui_owner(text: str) -> str:
     replacements = (
         (
             "mergedMessageReactions(attributes: firstMessage.attributes, isTags: firstMessage.areReactionsTags(accountPeerId: item.context.account.peerId))",
-            "jerkgramVisibleMessageReactions(accountPeerId: item.context.account.peerId, attributes: firstMessage.attributes, isTags: firstMessage.areReactionsTags(accountPeerId: item.context.account.peerId))",
+            "jerkgramVisibleMessageReactions(accountPeerId: item.context.account.peerId, message: firstMessage)",
         ),
         (
             "mergedMessageReactions(attributes: item.message.attributes, isTags: item.message.areReactionsTags(accountPeerId: item.context.account.peerId))",
-            "jerkgramVisibleMessageReactions(accountPeerId: item.context.account.peerId, attributes: item.message.attributes, isTags: item.message.areReactionsTags(accountPeerId: item.context.account.peerId))",
+            "jerkgramVisibleMessageReactions(accountPeerId: item.context.account.peerId, message: item.message)",
         ),
     )
     for old, new in replacements:
