@@ -6,16 +6,18 @@ import sys
 import tempfile
 import zipfile
 
-import verify_jerkgram_v12s_build130_final_ipa as base
-
-
 EXPECTED_BUNDLE = "com.jerkgram.ios"
 EXPECTED_TELEGRAM_VERSION = "12.9.2"
 EXPECTED_BUILD = "134"
 EXPECTED_DISPLAY = "Jerkgram"
-
-base.base.base.EXPECTED_BUILD = EXPECTED_BUILD
-base.base.base.EXPECTED_BUNDLE = EXPECTED_BUNDLE
+EXTENSION_SUFFIXES = {
+    "BroadcastUploadExtension.appex": "BroadcastUpload",
+    "IntentsExtension.appex": "SiriIntents",
+    "NotificationContentExtension.appex": "NotificationContent",
+    "NotificationServiceExtensionv1.appex": "NotificationService",
+    "ShareExtension.appex": "Share",
+    "WidgetExtension.appex": "Widget",
+}
 
 
 def require(value: bool, message: str) -> None:
@@ -40,13 +42,26 @@ def verify_build133_identity(ipa: Path) -> None:
         require(str(info.get("CFBundleVersion")) == EXPECTED_BUILD, "CFBundleVersion is not 134")
         require(info.get("CFBundleDisplayName") == EXPECTED_DISPLAY, "CFBundleDisplayName is not Jerkgram")
         require(info.get("CFBundleName") == EXPECTED_DISPLAY, "CFBundleName is not Jerkgram")
+        require(not (app / "embedded.mobileprovision").exists(), "main embedded.mobileprovision present")
+
+        plugins_root = app / "PlugIns"
+        plugins = {path.name: path for path in plugins_root.glob("*.appex") if path.is_dir()}
+        require(set(plugins) == set(EXTENSION_SUFFIXES), "extension topology mismatch")
+        for name, suffix in EXTENSION_SUFFIXES.items():
+            extension = plugins[name]
+            with (extension / "Info.plist").open("rb") as file:
+                extension_info = plistlib.load(file)
+            expected = EXPECTED_BUNDLE + "." + suffix
+            require(extension_info.get("CFBundleIdentifier") == expected, f"{name} CFBundleIdentifier is not {expected}")
+            require(str(extension_info.get("CFBundleVersion")) == EXPECTED_BUILD, f"{name} CFBundleVersion is not 134")
+            require(not (extension / "embedded.mobileprovision").exists(), f"{name} embedded.mobileprovision present")
 
 
 def main() -> None:
     ipa = Path(sys.argv[1] if len(sys.argv) > 1 else "work/swiftgram-src/ghostbase-final/GhostBase.ipa").resolve()
-    # Keep every Build130 packaging/keychain/extension gate, then add the exact
-    # Build133 public identity contract observed in the last-good Build130 IPA.
-    base.main()
+    # The canonical workflow runs the complete Build130 verifier immediately
+    # before the Build134 namespace rebase. Re-running that old-namespace gate
+    # here would reject the requested com.jerkgram.ios identity.
     verify_build133_identity(ipa)
     print("[Build134 final IPA verify] GREEN")
     print("[Build134 final IPA verify] com.jerkgram.ios / Telegram 12.9.2 / Build 134")

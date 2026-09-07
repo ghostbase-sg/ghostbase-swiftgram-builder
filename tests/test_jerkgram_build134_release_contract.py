@@ -1,7 +1,10 @@
 import importlib.util
 from pathlib import Path
+import plistlib
 import sys
+import tempfile
 import unittest
+import zipfile
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -45,6 +48,61 @@ class Build134ReleaseContract(unittest.TestCase):
         self.assertIn("name: Jerkgram-Build134", workflow)
         self.assertIn("artifacts/Jerkgram-Build134.ipa", workflow)
         self.assertIn("tests.test_jerkgram_build134_release_contract", workflow)
+
+    def test_finalizer_rebases_main_and_all_extension_bundle_identifiers(self):
+        identity = load(REPO / "scripts/jerkgram_finalize_build133_identity.py", "identity134_rebase")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            app = root / "Payload/Telegram.app"
+            plugins = app / "PlugIns"
+            plugins.mkdir(parents=True)
+            (app / "Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "ph.telegra.Telegraph"}))
+            for name, suffix in identity.EXTENSION_SUFFIXES.items():
+                extension = plugins / name
+                extension.mkdir()
+                (extension / "Info.plist").write_bytes(plistlib.dumps({
+                    "CFBundleIdentifier": "ph.telegra.Telegraph." + suffix,
+                }))
+
+            identity.rewrite_bundle_identifiers(root)
+
+            with (app / "Info.plist").open("rb") as file:
+                self.assertEqual(plistlib.load(file)["CFBundleIdentifier"], "com.jerkgram.ios")
+            for name, suffix in identity.EXTENSION_SUFFIXES.items():
+                with (plugins / name / "Info.plist").open("rb") as file:
+                    self.assertEqual(
+                        plistlib.load(file)["CFBundleIdentifier"],
+                        "com.jerkgram.ios." + suffix,
+                    )
+
+    def test_final_verifier_accepts_only_complete_build134_namespace(self):
+        verifier = load(REPO / "scripts/verify_jerkgram_v12w_build133_final_ipa.py", "verify_identity134")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            app = root / "Payload/Telegram.app"
+            plugins = app / "PlugIns"
+            plugins.mkdir(parents=True)
+            (app / "Info.plist").write_bytes(plistlib.dumps({
+                "CFBundleIdentifier": "com.jerkgram.ios",
+                "CFBundleShortVersionString": "12.9.2",
+                "CFBundleVersion": "134",
+                "CFBundleDisplayName": "Jerkgram",
+                "CFBundleName": "Jerkgram",
+            }))
+            for name, suffix in verifier.EXTENSION_SUFFIXES.items():
+                extension = plugins / name
+                extension.mkdir()
+                (extension / "Info.plist").write_bytes(plistlib.dumps({
+                    "CFBundleIdentifier": "com.jerkgram.ios." + suffix,
+                    "CFBundleVersion": "134",
+                }))
+            ipa = root / "Build134.ipa"
+            with zipfile.ZipFile(ipa, "w") as archive:
+                for path in (root / "Payload").rglob("*"):
+                    if path.is_file():
+                        archive.write(path, path.relative_to(root))
+
+            verifier.verify_build133_identity(ipa)
 
     def test_probe_hook_upgrades_an_existing_build133_block_to_v2_1(self):
         hook = load(REPO / "scripts/install_jerkgram_v12w_build133_probe_hook.py", "hook134_upgrade")
