@@ -93,32 +93,57 @@ public enum JerkgramReleaseIdentity {{
 '''
 
 
+ABOUT_OLD_VERSION = '            .aboutValue(1, 1, strings.jerkgramVersion, Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"),'
+ABOUT_OLD_BUILD = '            .aboutValue(1, 2, strings.build, Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"),'
+ABOUT_OLD_BASE = '            .aboutValue(1, 3, strings.telegramBase, "12.9.2"),'
+ABOUT_NEW_VERSION = '            .aboutValue(1, 1, strings.jerkgramVersion, JerkgramReleaseIdentity.displayVersion),'
+ABOUT_NEW_BUILD = '            .aboutValue(1, 2, strings.build, JerkgramReleaseIdentity.build),'
+ABOUT_NEW_BASE = '            .aboutValue(1, 3, strings.telegramBase, JerkgramReleaseIdentity.telegramBase),'
+
+
 def patch_settings_text(text: str) -> str:
     signature = "private func JerkgramSettingsStatusItem("
-    if MARKER in text:
+
+    if MARKER not in text:
+        require("BUILD123_SETTINGS_SYSTEM1" in text, "Build123 Settings status prerequisite missing")
+        old_owner = block_text(text, signature)
+        require("ItemListDisclosureItem(" in old_owner, "expected legacy disclosure status owner missing")
+        require("systemStyle: .glass" in old_owner, "expected legacy glass status owner missing")
+        text = replace_block(text, signature, STATUS_OWNER)
+    else:
         require(text.count(MARKER) == 1, "Settings release marker is ambiguous")
-        owner = block_text(text, signature)
-        require("ItemListTextItem(" in owner, "native status text owner missing")
-        require("text: .plain(text)" in owner, "plain status text missing")
-        require("ItemListDisclosureItem(" not in owner, "glass/disclosure status owner survived")
-        require("systemStyle: .glass" not in owner, "glass status owner survived")
-        return text
 
-    require("BUILD123_SETTINGS_SYSTEM1" in text, "Build123 Settings status prerequisite missing")
-    old_owner = block_text(text, signature)
-    require("ItemListDisclosureItem(" in old_owner, "expected legacy disclosure status owner missing")
-    require("systemStyle: .glass" in old_owner, "expected legacy glass status owner missing")
-
-    text = replace_block(text, signature, STATUS_OWNER)
     owner = block_text(text, signature)
     require("ItemListTextItem(" in owner and "text: .plain(text)" in owner, "native plain status owner not materialized")
     require("ItemListDisclosureItem(" not in owner and "systemStyle: .glass" not in owner, "legacy bubble survived in status owner")
+    require("style: .blocks" not in owner, "legacy block/card status styling survived")
 
-    # Do not rebuild page arrays. Existing .info rows in About / Appearance /
-    # Messages keep their stable ids and now render through the native text owner.
+    # Real materialized About owner historically read Jerkgram Version from
+    # CFBundleShortVersionString, which is intentionally Telegram's 12.9.2.
+    # Keep that plist value untouched and bind only Jerkgram's in-app rows to
+    # the independent release identity.
+    about_start, about_end = block_bounds(text, "if page == .about {")
+    about = text[about_start:about_end]
+    if ABOUT_NEW_VERSION not in about:
+        require(about.count(ABOUT_OLD_VERSION) == 1, "About Jerkgram Version owner changed")
+        about = about.replace(ABOUT_OLD_VERSION, ABOUT_NEW_VERSION, 1)
+    if ABOUT_NEW_BUILD not in about:
+        require(about.count(ABOUT_OLD_BUILD) == 1, "About Build owner changed")
+        about = about.replace(ABOUT_OLD_BUILD, ABOUT_NEW_BUILD, 1)
+    if ABOUT_NEW_BASE not in about:
+        require(about.count(ABOUT_OLD_BASE) == 1, "About Telegram Base owner changed")
+        about = about.replace(ABOUT_OLD_BASE, ABOUT_NEW_BASE, 1)
+    text = text[:about_start] + about + text[about_end:]
+
     for page in ("messages", "appearance", "about"):
         page_block = block_text(text, f"if page == .{page} {{")
         require(".info(" in page_block, f"{page} native info/footer row missing")
+
+    about = block_text(text, "if page == .about {")
+    require(ABOUT_NEW_VERSION.strip() in about, "About Jerkgram Version is not release-bound")
+    require(ABOUT_NEW_BUILD.strip() in about, "About Build is not release-bound")
+    require(ABOUT_NEW_BASE.strip() in about, "About Telegram Base is not release-bound")
+    require('Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")' not in about, "About still exposes Telegram plist version as Jerkgram Version")
     return text
 
 
@@ -127,7 +152,7 @@ def patch_strings_text(text: str) -> str:
     if IDENTITY_MARKER in text:
         require(text.count(IDENTITY_MARKER) == 1, "release identity marker is ambiguous")
         about = block_text(text, about_signature)
-        require("JerkgramReleaseIdentity.aboutText" in about, "About is not bound to release identity")
+        require("JerkgramReleaseIdentity.aboutText" in about, "legacy About summary is not release-bound")
         return text
 
     require("BUILD124_SETTINGS_REDESIGN_STRINGS1" in text, "Build124 Settings strings prerequisite missing")
@@ -143,7 +168,7 @@ def patch_strings_text(text: str) -> str:
     text = text.rstrip() + IDENTITY_SOURCE + "\n"
 
     about = block_text(text, about_signature)
-    require("JerkgramReleaseIdentity.aboutText" in about, "About release binding missing")
+    require("JerkgramReleaseIdentity.aboutText" in about, "legacy About summary release binding missing")
     for token in (
         f'displayVersion = "{DISPLAY_VERSION}"',
         f'technicalVersion = "{TECHNICAL_VERSION}"',
