@@ -110,6 +110,24 @@ class Build133BlockedReactionContracts(unittest.TestCase):
         self.assertTrue(callable(verify.verify_reaction_owner))
         self.assertTrue(callable(verify.verify_list_owner))
 
+    def test_standard_message_bubble_uses_filtered_reactions_at_every_visual_owner(self):
+        fixture = '''import TelegramCore
+func layout(item: Item, firstMessage: Message) {
+    let first = mergedMessageReactions(attributes: firstMessage.attributes, isTags: firstMessage.areReactionsTags(accountPeerId: item.context.account.peerId))
+    let second = mergedMessageReactions(attributes: item.message.attributes, isTags: item.message.areReactionsTags(accountPeerId: item.context.account.peerId))
+}
+'''
+        patch_bubble = getattr(self.patch, "patch_bubble_ui_owner", None)
+        if not callable(patch_bubble):
+            self.fail("standard bubble reaction owner is not patchable")
+        updated = patch_bubble(fixture)
+        self.assertEqual(updated.count("jerkgramVisibleMessageReactions("), 2)
+        self.assertNotIn("= mergedMessageReactions(attributes:", updated)
+
+    def test_blocked_policy_publishes_live_visibility_updates(self):
+        self.assertIn("presentationUpdates", self.patch.POLICY_SOURCE)
+        self.assertIn("notifySettingsChanged", self.patch.POLICY_SOURCE)
+
 
 if __name__ == "__main__":
     unittest.main()

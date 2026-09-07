@@ -42,6 +42,52 @@ class Build133BlockedActivityContracts(unittest.TestCase):
         targets = [(1, None, True)]
         self.assertEqual(self.patch.visible_navigation_target(targets, {"A"}, enabled=True), 1)
 
+    def test_chat_history_removes_blocked_authors_when_enabled(self):
+        self.assertTrue(callable(getattr(self.patch, "visible_chat_messages", None)))
+        messages = [(1, "A"), (2, "B"), (3, "ME")]
+        self.assertEqual(
+            self.patch.visible_chat_messages(messages, {"A"}, account="ME", enabled=True),
+            [(2, "B"), (3, "ME")],
+        )
+
+    def test_chat_history_preserves_messages_when_disabled(self):
+        self.assertTrue(callable(getattr(self.patch, "visible_chat_messages", None)))
+        messages = [(1, "A"), (2, "B")]
+        self.assertEqual(
+            self.patch.visible_chat_messages(messages, {"A"}, account="ME", enabled=False),
+            messages,
+        )
+
+    def test_chat_history_source_filters_before_building_entries(self):
+        fixture = '''loop: for entry in view.entries {
+        var message = entry.message
+        var isRead = entry.isRead
+
+        if pendingRemovedMessages.contains(message.id) {
+            continue
+        }
+
+        count += 1
+    }
+'''
+        patch_entries = getattr(self.patch, "patch_chat_history_entries", None)
+        if not callable(patch_entries):
+            self.fail("chat history entry owner is not patchable")
+        updated = patch_entries(fixture)
+        self.assertIn("JerkgramBlockedReactionPolicy.isMessageHidden(", updated)
+        self.assertLess(updated.index("JerkgramBlockedReactionPolicy.isMessageHidden("), updated.index("count += 1"))
+
+    def test_chat_history_reacts_to_block_list_and_setting_changes(self):
+        fixture = '''        let historyViewUpdateValue = historyViewUpdate
+        historyViewUpdate = stopHistoryViewUpdates |> mapToSignal { value in
+'''
+        patch_list = getattr(self.patch, "patch_chat_history_list", None)
+        if not callable(patch_list):
+            self.fail("chat history update stream is not patchable")
+        updated = patch_list(fixture)
+        self.assertIn("JerkgramBlockedReactionPolicy.presentationUpdates", updated)
+        self.assertIn("combineLatest(", updated)
+
     def test_chat_list_activity_hidden_when_complete_set_is_blocked(self):
         self.assertFalse(
             self.patch.visible_activity(

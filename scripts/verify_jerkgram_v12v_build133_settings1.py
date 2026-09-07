@@ -70,6 +70,21 @@ def verify_settings(text: str) -> None:
     require("var hideBlockedReactions: Bool" in text, "blocked-reaction state missing")
     require("updated.hideBlockedMessages = value" in text, "blocked-message update case missing")
     require("updated.hideBlockedReactions = value" in text, "blocked-reaction update case missing")
+    sync_start = text.find("let jerkgramSynchronousRuntimeSettingKeys: Set<String> = [")
+    require(sync_start >= 0, "synchronous runtime key owner missing")
+    sync_end = text.find("\n    ]", sync_start)
+    require(sync_end >= 0, "synchronous runtime key owner is unbalanced")
+    synchronous_keys = text[sync_start:sync_end]
+    require("GhostBaseKey.hideBlockedMessages," in synchronous_keys, "blocked-message synchronous key missing")
+    require("GhostBaseKey.hideBlockedReactions," in synchronous_keys, "blocked-reaction synchronous key missing")
+    require(text.count("JerkgramBlockedReactionPolicy.notifySettingsChanged()") == 1, "blocked runtime refresh notification count != 1")
+    persistence_start, persistence_end = block_bounds(text, "private func jerkgramPersistChangedSettings(")
+    persistence = text[persistence_start:persistence_end]
+    require(
+        persistence.index("value.write(to: defaults, key: key)")
+        < persistence.index("JerkgramBlockedReactionPolicy.notifySettingsChanged()"),
+        "runtime refresh fires before blocked settings are committed",
+    )
 
     start, end = block_bounds(text, "if page == .messages {")
     messages = text[start:end]

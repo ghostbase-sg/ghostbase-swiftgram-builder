@@ -2,7 +2,6 @@
 
 from pathlib import Path
 import os
-import re
 
 
 ROOT = Path(os.environ.get("JERKGRAM_SOURCE_ROOT", os.environ.get("GHOSTBASE_SOURCE_ROOT", str(Path.cwd())))).resolve()
@@ -111,14 +110,10 @@ def patch_settings_text(text: str) -> str:
     else:
         require(text.count(MARKER) == 1, "Settings release marker is ambiguous")
 
-    # Keep rounded glass only for actionable destination buttons (arrow rows).
-    # Switches, values and footers stay native/flat as requested.
-    call_pattern = re.compile(r"ItemList(?:Switch|Disclosure)Item\((?:[^()]|\([^()]*\))*\)", re.DOTALL)
-    def normalize_call(match):
-        call = match.group(0)
-        keep_rounded_destination = call.startswith("ItemListDisclosureItem(") and "disclosureStyle: .arrow" in call
-        return call if keep_rounded_destination else call.replace("systemStyle: .glass,", "")
-    text = call_pattern.sub(normalize_call, text)
+    # Keep Telegram's glass system style on every interactive row. Its native
+    # mask uses a 26 pt radius; stripping it falls back to the nearly-square
+    # 11 pt legacy mask seen in Build134. Status/footer text remains plain via
+    # JerkgramSettingsStatusItem above and is not turned into a bubble.
 
     owner = block_text(text, signature)
     require("ItemListTextItem(" in owner and "text: .plain(text)" in owner, "native plain status owner not materialized")
@@ -189,7 +184,7 @@ def main() -> None:
     SETTINGS.write_text(patch_settings_text(SETTINGS.read_text(encoding="utf-8")), encoding="utf-8")
     STRINGS.write_text(patch_strings_text(STRINGS.read_text(encoding="utf-8")), encoding="utf-8")
     print("[Build133 release UI] SOURCE PATCHED")
-    print("[Build134 release UI] Jerkgram 1.0.2 Beta 2 / Build 134 / Telegram Base 12.9.2; rounded destinations + flat value rows")
+    print("[Build134 release UI] Jerkgram 1.0.2 Beta 2 / Build 134 / Telegram Base 12.9.2; 26pt glass interactive rows + plain status text")
 
 
 if __name__ == "__main__":

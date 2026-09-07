@@ -106,7 +106,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         spec.loader.exec_module(module)
         return module
 
-    def test_status_is_plain_switches_are_flat_and_destination_buttons_keep_rounding(self):
+    def test_status_is_plain_and_interactive_rows_keep_large_glass_rounding(self):
         module = self.load_patch()
         updated = module.patch_settings_text(SETTINGS_FIXTURE)
         status = module.block_text(updated, "private func JerkgramSettingsStatusItem(")
@@ -117,7 +117,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         self.assertNotIn("style: .blocks", status)
         renderer = module.block_text(updated, "private func build133SyntheticRenderer(")
         switch_owner, disclosure_owner = renderer.split("ItemListDisclosureItem(", 1)
-        self.assertNotIn("systemStyle: .glass", switch_owner)
+        self.assertIn("systemStyle: .glass", switch_owner)
         self.assertIn("systemStyle: .glass", disclosure_owner)
         self.assertIn(".info(1, \"messages footer\")", updated)
         self.assertIn(".info(1, \"appearance footer\")", updated)

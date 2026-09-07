@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import re
+import sys
 import unittest
 
 
@@ -91,6 +92,36 @@ private func f() {
     def test_storage_keys_are_stable(self):
         self.assertEqual(self.patch.HIDE_BLOCKED_MESSAGES_KEY, "jerkgram.Messages.HideBlockedMessages")
         self.assertEqual(self.patch.HIDE_BLOCKED_REACTIONS_KEY, "jerkgram.Messages.HideBlockedReactions")
+
+    def test_blocked_visibility_settings_are_committed_before_runtime_notification(self):
+        sys.path.insert(0, str(REPO / "scripts"))
+        try:
+            patch2 = self.load(REPO / "scripts/apply_jerkgram_v12v_build133_settings2.py", "build133_settings2_sync")
+        finally:
+            sys.path.pop(0)
+        fixture = '''    let jerkgramSynchronousRuntimeSettingKeys: Set<String> = [
+        GhostBaseKey.scheduledSend,
+        GhostBaseKey.protectedEnabled,
+        GhostBaseKey.oneTimeSave,
+    ]
+    let defaults = UserDefaults.standard
+    for key in jerkgramSynchronousRuntimeSettingKeys {
+        guard let value = changes[key] else { continue }
+        value.write(to: defaults, key: key)
+    }
+
+    let deferredChanges = changes.filter {
+'''
+        patch_commit = getattr(patch2, "patch_blocked_runtime_commit", None)
+        if not callable(patch_commit):
+            self.fail("blocked runtime settings commit owner is not patchable")
+        updated = patch_commit(fixture)
+        self.assertIn("GhostBaseKey.hideBlockedMessages", updated)
+        self.assertIn("GhostBaseKey.hideBlockedReactions", updated)
+        self.assertLess(
+            updated.index("value.write(to: defaults, key: key)"),
+            updated.index("JerkgramBlockedReactionPolicy.notifySettingsChanged()"),
+        )
 
     def test_verifier_contract_exists(self):
         verify = self.load(VERIFY, "build133_settings_verify")

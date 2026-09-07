@@ -12,6 +12,8 @@ ACCOUNT_VIEW_TRACKER = ROOT / "submodules/TelegramCore/Sources/State/AccountView
 DELETE_MESSAGES = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/DeleteMessages.swift"
 CHAT_LIST = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/ChatList.swift"
 NAVIGATION = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/EarliestUnseenPersonalMentionMessage.swift"
+CHAT_HISTORY_ENTRIES = ROOT / "submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift"
+CHAT_HISTORY_LIST = ROOT / "submodules/TelegramUI/Sources/ChatHistoryListNode.swift"
 
 POLICY_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_POLICY1"
 STORE_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_STORE1"
@@ -19,6 +21,8 @@ TRACKER_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_TRACKER1"
 DELETE_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_DELETE1"
 CHAT_LIST_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_CHAT_LIST1"
 NAV_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_NAVIGATION1"
+HISTORY_ENTRIES_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_MESSAGE_HISTORY2"
+HISTORY_REFRESH_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_VISIBILITY_REFRESH2"
 
 
 def require(value: bool, message: str) -> None:
@@ -121,8 +125,19 @@ def verify_refresh_owners(tracker: str, delete_messages: str) -> None:
     )
 
 
+def verify_chat_history_owners(entries: str, history_list: str) -> None:
+    require(entries.count(HISTORY_ENTRIES_MARKER) == 1, "chat history message-filter marker count")
+    require("JerkgramBlockedReactionPolicy.isMessageHidden(" in entries, "chat history does not filter blocked message authors")
+    require("authorId: message.author?.id" in entries, "chat history author binding missing")
+    require(entries.index("JerkgramBlockedReactionPolicy.isMessageHidden(") < entries.index("count += 1"), "blocked message is counted before filtering")
+
+    require(history_list.count(HISTORY_REFRESH_MARKER) == 1, "chat history visibility-refresh marker count")
+    require("JerkgramBlockedReactionPolicy.presentationUpdates" in history_list, "chat history is not subscribed to visibility changes")
+    require("let historyViewUpdateValue = combineLatest(" in history_list, "visibility refresh is not joined to history updates")
+
+
 def main() -> None:
-    owners = (BLOCKED_CONTEXT, STORE_MESSAGE, ACCOUNT_VIEW_TRACKER, DELETE_MESSAGES, CHAT_LIST, NAVIGATION)
+    owners = (BLOCKED_CONTEXT, STORE_MESSAGE, ACCOUNT_VIEW_TRACKER, DELETE_MESSAGES, CHAT_LIST, NAVIGATION, CHAT_HISTORY_ENTRIES, CHAT_HISTORY_LIST)
     for path in owners:
         require(path.is_file(), "missing source owner: " + str(path))
 
@@ -134,6 +149,10 @@ def main() -> None:
     )
     verify_chat_list_owner(CHAT_LIST.read_text(encoding="utf-8"))
     verify_navigation_owner(NAVIGATION.read_text(encoding="utf-8"))
+    verify_chat_history_owners(
+        CHAT_HISTORY_ENTRIES.read_text(encoding="utf-8"),
+        CHAT_HISTORY_LIST.read_text(encoding="utf-8"),
+    )
     print("[Build133 blocked activity verifier] PREFLIGHT OWNER CHECKS GREEN")
 
 

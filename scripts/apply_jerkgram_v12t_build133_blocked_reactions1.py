@@ -17,12 +17,14 @@ DIRECT_UI_OWNERS = (
     ROOT / "submodules/TelegramUI/Components/Chat/ChatMessageAnimatedStickerItemNode/Sources/ChatMessageAnimatedStickerItemNode.swift",
     ROOT / "submodules/TelegramUI/Components/Chat/ChatMessageRichDataBubbleContentNode/Sources/ChatMessageRichDataBubbleContentNode.swift",
 )
+BUBBLE_UI_OWNER = ROOT / "submodules/TelegramUI/Components/Chat/ChatMessageBubbleItemNode/Sources/ChatMessageBubbleItemNode.swift"
 
 POLICY_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_POLICY1"
 ATTRIBUTE_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_AGGREGATE1"
 LIST_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_LIST1"
 ACCOUNT_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_OBSERVER1"
 UI_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_UI1"
+BUBBLE_UI_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_BUBBLE_UI2"
 
 
 def require(value: bool, message: str) -> None:
@@ -96,13 +98,37 @@ public enum JerkgramBlockedReactionPolicy {
     public static let hideBlockedMessagesKey = "jerkgram.Messages.HideBlockedMessages"
 
     private static let blockedPeerIdsByAccount = Atomic(value: [PeerId: Set<PeerId>]())
+    private static let presentationRevision = Atomic(value: Int32(0))
+    private static let presentationRevisionPromise = ValuePromise<Int32>(0, ignoreRepeated: false)
+
+    public static var presentationUpdates: Signal<Int32, NoError> {
+        return self.presentationRevisionPromise.get()
+    }
+
+    private static func notifyPresentationChanged() {
+        let revision = self.presentationRevision.modify { current in
+            return current == Int32.max ? 0 : current + 1
+        }
+        self.presentationRevisionPromise.set(revision)
+    }
+
+    public static func notifySettingsChanged() {
+        self.notifyPresentationChanged()
+    }
 
     public static func replaceBlockedPeerIds(accountPeerId: PeerId, peerIds: Set<PeerId>) {
+        let previous = self.blockedPeerIdsByAccount.with { current in
+            return current[accountPeerId] ?? Set()
+        }
+        if previous == peerIds {
+            return
+        }
         let _ = self.blockedPeerIdsByAccount.modify { current in
             var current = current
             current[accountPeerId] = peerIds
             return current
         }
+        self.notifyPresentationChanged()
     }
 
     public static func blockedPeerIds(accountPeerId: PeerId) -> Set<PeerId> {
@@ -428,14 +454,39 @@ def patch_direct_ui_owner(text: str, path: Path) -> str:
     return text
 
 
+def patch_bubble_ui_owner(text: str) -> str:
+    if BUBBLE_UI_MARKER in text:
+        require(text.count(BUBBLE_UI_MARKER) == 1, "standard bubble UI marker is ambiguous")
+        return text
+
+    replacements = (
+        (
+            "mergedMessageReactions(attributes: firstMessage.attributes, isTags: firstMessage.areReactionsTags(accountPeerId: item.context.account.peerId))",
+            "jerkgramVisibleMessageReactions(accountPeerId: item.context.account.peerId, attributes: firstMessage.attributes, isTags: firstMessage.areReactionsTags(accountPeerId: item.context.account.peerId))",
+        ),
+        (
+            "mergedMessageReactions(attributes: item.message.attributes, isTags: item.message.areReactionsTags(accountPeerId: item.context.account.peerId))",
+            "jerkgramVisibleMessageReactions(accountPeerId: item.context.account.peerId, attributes: item.message.attributes, isTags: item.message.areReactionsTags(accountPeerId: item.context.account.peerId))",
+        ),
+    )
+    for old, new in replacements:
+        require(text.count(old) == 1, "standard bubble reaction owner missing or ambiguous")
+        text = text.replace(old, new, 1)
+
+    import_anchor = "import TelegramCore\n"
+    require(text.count(import_anchor) >= 1, "standard bubble TelegramCore import missing")
+    return text.replace(import_anchor, import_anchor + BUBBLE_UI_MARKER + "\n", 1)
+
+
 def main() -> None:
-    for path in (REACTION_ATTRIBUTE, REACTION_LIST, BLOCKED_CONTEXT, ACCOUNT_CONTEXT, *DIRECT_UI_OWNERS):
+    for path in (REACTION_ATTRIBUTE, REACTION_LIST, BLOCKED_CONTEXT, ACCOUNT_CONTEXT, BUBBLE_UI_OWNER, *DIRECT_UI_OWNERS):
         require(path.is_file(), "missing source owner: " + str(path))
 
     BLOCKED_CONTEXT.write_text(patch_blocked_context(BLOCKED_CONTEXT.read_text(encoding="utf-8")), encoding="utf-8")
     ACCOUNT_CONTEXT.write_text(patch_account_context(ACCOUNT_CONTEXT.read_text(encoding="utf-8")), encoding="utf-8")
     REACTION_ATTRIBUTE.write_text(patch_reaction_attribute(REACTION_ATTRIBUTE.read_text(encoding="utf-8")), encoding="utf-8")
     REACTION_LIST.write_text(patch_reaction_list(REACTION_LIST.read_text(encoding="utf-8")), encoding="utf-8")
+    BUBBLE_UI_OWNER.write_text(patch_bubble_ui_owner(BUBBLE_UI_OWNER.read_text(encoding="utf-8")), encoding="utf-8")
 
     for path in DIRECT_UI_OWNERS:
         path.write_text(patch_direct_ui_owner(path.read_text(encoding="utf-8"), path), encoding="utf-8")

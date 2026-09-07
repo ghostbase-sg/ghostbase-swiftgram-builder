@@ -255,6 +255,10 @@ jobs:
             work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Messages/DeleteMessages.swift
             work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Messages/ChatList.swift
             work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Messages/EarliestUnseenPersonalMentionMessage.swift
+            work/swiftgram-src/submodules/TelegramUI/Sources/AccountContext.swift
+            work/swiftgram-src/submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift
+            work/swiftgram-src/submodules/TelegramUI/Sources/ChatHistoryListNode.swift
+            work/swiftgram-src/submodules/TelegramUI/Components/Chat/ChatMessageBubbleItemNode/Sources/ChatMessageBubbleItemNode.swift
             work/swiftgram-src/submodules/TelegramUI/Sources/OverlayAudioPlayerController.swift
             work/swiftgram-src/submodules/TelegramUI/Sources/OverlayAudioPlayerControllerNode.swift
           if-no-files-found: warn

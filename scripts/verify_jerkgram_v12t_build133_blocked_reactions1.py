@@ -17,12 +17,14 @@ DIRECT_UI_OWNERS = (
     ROOT / "submodules/TelegramUI/Components/Chat/ChatMessageAnimatedStickerItemNode/Sources/ChatMessageAnimatedStickerItemNode.swift",
     ROOT / "submodules/TelegramUI/Components/Chat/ChatMessageRichDataBubbleContentNode/Sources/ChatMessageRichDataBubbleContentNode.swift",
 )
+BUBBLE_UI_OWNER = ROOT / "submodules/TelegramUI/Components/Chat/ChatMessageBubbleItemNode/Sources/ChatMessageBubbleItemNode.swift"
 
 POLICY_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_POLICY1"
 ATTRIBUTE_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_AGGREGATE1"
 LIST_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_LIST1"
 ACCOUNT_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_OBSERVER1"
 UI_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_UI1"
+BUBBLE_UI_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_BUBBLE_UI2"
 
 
 def require(value: bool, message: str) -> None:
@@ -38,6 +40,8 @@ def verify_policy_source(text: str) -> None:
     require("if state.canLoadMore && !state.isLoadingMore" in text, "blocked list does not drain all pages")
     require("hideBlockedReactionsKey = \"jerkgram.Messages.HideBlockedReactions\"" in text, "reaction setting key missing")
     require("return true" in text, "default blocked reaction policy missing")
+    require("public static var presentationUpdates:" in text, "live presentation update signal missing")
+    require("public static func notifySettingsChanged()" in text, "settings refresh bridge missing")
     require("network.request" not in text[text.index(POLICY_MARKER):text.index("public final class BlockedPeersContext {")], "policy must not issue per-item network requests")
 
 
@@ -75,14 +79,21 @@ def verify_ui_owner(text: str, name: str) -> None:
     require("jerkgramVisibleMessageReactions(accountPeerId:" in text, f"{name}: direct reaction presentation bypasses policy")
 
 
+def verify_bubble_ui_owner(text: str) -> None:
+    require(text.count(BUBBLE_UI_MARKER) == 1, "standard bubble UI marker count != 1")
+    require(text.count("jerkgramVisibleMessageReactions(accountPeerId:") == 2, "standard bubble does not filter both visual reaction owners")
+    require("= mergedMessageReactions(attributes:" not in text, "standard bubble raw reaction presentation survived")
+
+
 def main() -> None:
-    for path in (REACTION_ATTRIBUTE, REACTION_LIST, BLOCKED_CONTEXT, ACCOUNT_CONTEXT, *DIRECT_UI_OWNERS):
+    for path in (REACTION_ATTRIBUTE, REACTION_LIST, BLOCKED_CONTEXT, ACCOUNT_CONTEXT, BUBBLE_UI_OWNER, *DIRECT_UI_OWNERS):
         require(path.is_file(), "missing materialized owner: " + str(path))
 
     verify_policy_source(BLOCKED_CONTEXT.read_text(encoding="utf-8"))
     verify_reaction_owner(REACTION_ATTRIBUTE.read_text(encoding="utf-8"))
     verify_list_owner(REACTION_LIST.read_text(encoding="utf-8"))
     verify_account_owner(ACCOUNT_CONTEXT.read_text(encoding="utf-8"))
+    verify_bubble_ui_owner(BUBBLE_UI_OWNER.read_text(encoding="utf-8"))
     for path in DIRECT_UI_OWNERS:
         verify_ui_owner(path.read_text(encoding="utf-8"), path.name)
 

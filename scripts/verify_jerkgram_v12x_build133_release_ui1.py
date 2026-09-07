@@ -23,9 +23,7 @@ def verify_settings_owner(text: str) -> None:
     require("text: .plain(text)" in owner, "status/info is not plain text")
     require("ItemListDisclosureItem(" not in owner, "status/info still uses disclosure bubble")
     require("style: .blocks" not in owner, "status/info still uses block/card styling")
-    # Rounded glass is allowed only for actionable destination/disclosure
-    # buttons. Status/info and switches must remain flat.
-    require("ItemListSwitchItem(\n                presentationData: presentationData, systemStyle: .glass" not in text, "switch row still uses glass bubble")
+    require("ItemListSwitchItem(" in text and "systemStyle: .glass" in text, "interactive rows lost the 26pt glass rounding")
 
     for page in ("messages", "appearance", "about"):
         page_block = patch.block_text(text, f"if page == .{page} {{")
@@ -61,7 +59,7 @@ def main() -> None:
     verify_settings_owner(SETTINGS.read_text(encoding="utf-8"))
     verify_release_strings(STRINGS.read_text(encoding="utf-8"))
     print("[Build133 release UI verify] PREFLIGHT GREEN")
-    print("[Build134 release UI verify] flat value rows + rounded destination buttons / 1.0.2 Beta 2 / Build 134 / Telegram Base 12.9.2")
+    print("[Build134 release UI verify] 26pt rounded interactive rows + plain status text / 1.0.2 Beta 2 / Build 134 / Telegram Base 12.9.2")
 
 
 if __name__ == "__main__":

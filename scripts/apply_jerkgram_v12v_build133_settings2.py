@@ -19,6 +19,26 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+def patch_blocked_runtime_commit(text: str) -> str:
+    sync_anchor = '''        GhostBaseKey.oneTimeSave,
+    ]'''
+    sync_replacement = '''        GhostBaseKey.oneTimeSave,
+        GhostBaseKey.hideBlockedMessages,
+        GhostBaseKey.hideBlockedReactions,
+    ]'''
+    text = replace_once(text, sync_anchor, sync_replacement, "blocked synchronous runtime keys")
+
+    deferred_anchor = "\n    let deferredChanges = changes.filter {\n"
+    notify = '''
+    if changes[GhostBaseKey.hideBlockedMessages] != nil
+        || changes[GhostBaseKey.hideBlockedReactions] != nil {
+        JerkgramBlockedReactionPolicy.notifySettingsChanged()
+    }
+'''
+    text = replace_once(text, deferred_anchor, notify + deferred_anchor, "blocked runtime refresh notification")
+    return text
+
+
 def patch_settings_text(text: str) -> str:
     if base.MARKER in text:
         require(text.count(base.MARKER) == 1, "Settings marker is ambiguous")
@@ -89,6 +109,10 @@ def patch_settings_text(text: str) -> str:
     )
     text = replace_once(text, update_anchor, update_insert, "updateBool blocked cases")
 
+    # The visibility switches are runtime-critical: commit them before the
+    # refresh signal so an already-open chat reads the new value immediately.
+    text = patch_blocked_runtime_commit(text)
+
     # Add one independent native section at the end of Messages. Existing
     # sections and row ids are left untouched; .toggle already renders through
     # Telegram's ItemListSwitchItem owner.
@@ -138,6 +162,7 @@ def patch_settings_text(text: str) -> str:
     require(text.count("GhostBaseKey.hideBlockedReactions: .bool(state.hideBlockedReactions)") == 1, "blocked-reaction state map count != 1")
     require(text.count("jerkgramScopedBool(accountPeerId: accountPeerId, key: GhostBaseKey.hideBlockedMessages") == 1, "blocked-message scoped load count != 1")
     require(text.count("jerkgramScopedBool(accountPeerId: accountPeerId, key: GhostBaseKey.hideBlockedReactions") == 1, "blocked-reaction scoped load count != 1")
+    require(text.count("JerkgramBlockedReactionPolicy.notifySettingsChanged()") == 1, "blocked runtime refresh notification count != 1")
     require(text.count("strings.blockedUsers") == 1, "blocked section must render once")
     require(text.count("GhostBaseKey.hideBlockedMessages, strings.hideBlockedMessages") == 1, "blocked-message native row must render once")
     require(text.count("GhostBaseKey.hideBlockedReactions, strings.hideBlockedReactions") == 1, "blocked-reaction native row must render once")

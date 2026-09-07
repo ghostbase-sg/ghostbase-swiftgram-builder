@@ -13,6 +13,8 @@ ACCOUNT_VIEW_TRACKER = ROOT / "submodules/TelegramCore/Sources/State/AccountView
 DELETE_MESSAGES = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/DeleteMessages.swift"
 CHAT_LIST = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/ChatList.swift"
 NAVIGATION = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/EarliestUnseenPersonalMentionMessage.swift"
+CHAT_HISTORY_ENTRIES = ROOT / "submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift"
+CHAT_HISTORY_LIST = ROOT / "submodules/TelegramUI/Sources/ChatHistoryListNode.swift"
 
 POLICY_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_POLICY1"
 STORE_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_STORE1"
@@ -20,6 +22,8 @@ TRACKER_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_TRACKER1"
 DELETE_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_DELETE1"
 CHAT_LIST_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_CHAT_LIST1"
 NAV_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_NAVIGATION1"
+HISTORY_ENTRIES_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_MESSAGE_HISTORY2"
+HISTORY_REFRESH_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_VISIBILITY_REFRESH2"
 V12T_POLICY_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_POLICY1"
 
 
@@ -56,6 +60,12 @@ def visible_activity(*, stock, summary_count, loaded, blocked, enabled=True):
         if actor is None or actor not in blocked:
             return stock
     return False
+
+
+def visible_chat_messages(messages, blocked, *, account, enabled=True):
+    if not enabled:
+        return list(messages)
+    return [item for item in messages if item[1] == account or item[1] not in blocked]
 
 
 POLICY_EXTENSION = r'''
@@ -471,8 +481,51 @@ def patch_navigation(text: str) -> str:
     return text
 
 
+def patch_chat_history_entries(text: str) -> str:
+    if HISTORY_ENTRIES_MARKER in text:
+        require(text.count(HISTORY_ENTRIES_MARKER) == 1, "chat history message marker is ambiguous")
+        return text
+
+    anchor = '''        if pendingRemovedMessages.contains(message.id) {
+            continue
+        }
+'''
+    replacement = anchor + '''
+        // MARK: Jerkgram v1.2U BUILD133_BLOCKED_MESSAGE_HISTORY2
+        // Presentation-only filtering: Postbox contents stay untouched, so
+        // switching the option off restores the messages immediately.
+        if JerkgramBlockedReactionPolicy.isMessageHidden(
+            accountPeerId: context.account.peerId,
+            authorId: message.author?.id
+        ) {
+            continue loop
+        }
+'''
+    return replace_once(text, anchor, replacement, "chat history blocked-message presentation gate")
+
+
+def patch_chat_history_list(text: str) -> str:
+    if HISTORY_REFRESH_MARKER in text:
+        require(text.count(HISTORY_REFRESH_MARKER) == 1, "chat history refresh marker is ambiguous")
+        return text
+
+    anchor = "        let historyViewUpdateValue = historyViewUpdate\n"
+    replacement = '''        // MARK: Jerkgram v1.2U BUILD133_BLOCKED_VISIBILITY_REFRESH2
+        // Rebuild visible entries when either the Telegram blocked list or a
+        // Jerkgram visibility switch changes; no chat reload/restart required.
+        let historyViewUpdateValue = combineLatest(
+            historyViewUpdate,
+            JerkgramBlockedReactionPolicy.presentationUpdates
+        )
+        |> map { update, _ in
+            return update
+        }
+'''
+    return replace_once(text, anchor, replacement, "chat history live visibility refresh")
+
+
 def main() -> None:
-    owners = (BLOCKED_CONTEXT, STORE_MESSAGE, ACCOUNT_VIEW_TRACKER, DELETE_MESSAGES, CHAT_LIST, NAVIGATION)
+    owners = (BLOCKED_CONTEXT, STORE_MESSAGE, ACCOUNT_VIEW_TRACKER, DELETE_MESSAGES, CHAT_LIST, NAVIGATION, CHAT_HISTORY_ENTRIES, CHAT_HISTORY_LIST)
     for path in owners:
         require(path.is_file(), "missing source owner: " + str(path))
 
@@ -483,6 +536,8 @@ def main() -> None:
         DELETE_MESSAGES: patch_delete_messages(DELETE_MESSAGES.read_text(encoding="utf-8")),
         CHAT_LIST: patch_chat_list(CHAT_LIST.read_text(encoding="utf-8")),
         NAVIGATION: patch_navigation(NAVIGATION.read_text(encoding="utf-8")),
+        CHAT_HISTORY_ENTRIES: patch_chat_history_entries(CHAT_HISTORY_ENTRIES.read_text(encoding="utf-8")),
+        CHAT_HISTORY_LIST: patch_chat_history_list(CHAT_HISTORY_LIST.read_text(encoding="utf-8")),
     }
 
     for path, text in patched.items():
