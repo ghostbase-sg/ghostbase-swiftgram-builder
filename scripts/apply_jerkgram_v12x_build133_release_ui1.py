@@ -10,8 +10,8 @@ STRINGS = ROOT / "submodules/TelegramPresentationData/Sources/JerkgramStrings.sw
 
 MARKER = "// MARK: Jerkgram v1.2X BUILD133_RELEASE_UI1"
 IDENTITY_MARKER = "// MARK: Jerkgram v1.2X BUILD133_RELEASE_IDENTITY1"
-DISPLAY_VERSION = "1.0.2 Beta 1"
-TECHNICAL_VERSION = "1.0.2-beta.1"
+DISPLAY_VERSION = "1.0.2 Beta 2"
+TECHNICAL_VERSION = "1.0.2-beta.2"
 BUILD = "133"
 TELEGRAM_BASE = "12.9.2"
 
@@ -66,9 +66,6 @@ private func JerkgramSettingsStatusItem(
     text: String,
     sectionId: ItemListSectionId
 ) -> ListViewItem {
-    // A footer/status is text, not a tappable card. Keep Telegram's native
-    // ItemListTextItem owner so About / Appearance / Messages do not render
-    // glass pills or disclosure-shaped fake controls.
     return ItemListTextItem(
         presentationData: presentationData,
         text: .plain(text),
@@ -113,15 +110,18 @@ def patch_settings_text(text: str) -> str:
     else:
         require(text.count(MARKER) == 1, "Settings release marker is ambiguous")
 
+    # Build130's last-good UX uses Telegram's ordinary ItemList rows. The old
+    # Build118-124 glass renderer made every switch/disclosure look like an
+    # isolated bubble. Remove only the optional glass style argument; keep the
+    # native Telegram item classes, section grouping, actions and state owners.
+    text = text.replace("systemStyle: .glass,", "")
+    require("systemStyle: .glass" not in text, "legacy Settings glass/bubble styling survived")
+
     owner = block_text(text, signature)
     require("ItemListTextItem(" in owner and "text: .plain(text)" in owner, "native plain status owner not materialized")
-    require("ItemListDisclosureItem(" not in owner and "systemStyle: .glass" not in owner, "legacy bubble survived in status owner")
+    require("ItemListDisclosureItem(" not in owner, "legacy disclosure status owner survived")
     require("style: .blocks" not in owner, "legacy block/card status styling survived")
 
-    # Real materialized About owner historically read Jerkgram Version from
-    # CFBundleShortVersionString, which is intentionally Telegram's 12.9.2.
-    # Keep that plist value untouched and bind only Jerkgram's in-app rows to
-    # the independent release identity.
     about_start, about_end = block_bounds(text, "if page == .about {")
     about = text[about_start:about_end]
     if ABOUT_NEW_VERSION not in about:
@@ -186,7 +186,7 @@ def main() -> None:
     SETTINGS.write_text(patch_settings_text(SETTINGS.read_text(encoding="utf-8")), encoding="utf-8")
     STRINGS.write_text(patch_strings_text(STRINGS.read_text(encoding="utf-8")), encoding="utf-8")
     print("[Build133 release UI] SOURCE PATCHED")
-    print("[Build133 release UI] Jerkgram 1.0.2 Beta 1 / Build 133 / Telegram Base 12.9.2; native plain info rows")
+    print("[Build133 release UI] Jerkgram 1.0.2 Beta 2 / Build 133 / Telegram Base 12.9.2; native flat Settings rows")
 
 
 if __name__ == "__main__":
