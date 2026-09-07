@@ -27,6 +27,8 @@ SOURCE_ORDERED = (
     "verify_jerkgram_v12x_build133_release_ui1.py",
     "apply_jerkgram_v12y_build133_telemetry2.py",
     "verify_jerkgram_v12y_build133_telemetry2.py",
+    "apply_jerkgram_v12z_build134_context_localization1.py",
+    "verify_jerkgram_v12z_build134_context_localization1.py",
     "apply_jerkgram_v12w_build133_music_overlay1.py",
     "verify_jerkgram_v12w_build133_music_overlay1.py",
     "verify_jerkgram_v12w_build133_runtime_repair1.py",
