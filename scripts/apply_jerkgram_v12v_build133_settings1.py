@@ -202,12 +202,21 @@ def patch_settings_text(text: str) -> str:
     require(section_ids, "Messages section ids missing")
     blocked_section = max(section_ids) + 1
 
+    # Preserve whichever separator style the canonical array already uses.
+    # If its last element already has a trailing comma, adding another comma
+    # would materialize invalid Swift (`),\n,\n.header`).
+    existing_array_body = messages[open_index + 1:close_index].rstrip()
+    separator = "" if existing_array_body.endswith(",") else ","
     insertion = (
-        f",\n            .header({blocked_section}, strings.blockedUsers),"
+        f"{separator}\n            .header({blocked_section}, strings.blockedUsers),"
         f"\n            .toggle({blocked_section}, 1, GhostBaseKey.hideBlockedMessages, strings.hideBlockedMessages, state.hideBlockedMessages),"
         f"\n            .toggle({blocked_section}, 2, GhostBaseKey.hideBlockedReactions, strings.hideBlockedReactions, state.hideBlockedReactions)"
     )
     messages = messages[:close_index] + insertion + messages[close_index:]
+    require(
+        re.search(r"\n\s*,\s*\n\s*\.header\(\d+,\s*strings\.blockedUsers\)", messages) is None,
+        "standalone comma before blocked section",
+    )
     text = text[:messages_start] + messages + text[messages_end:]
 
     owner = "private func ghostBaseSettingsEntries("
