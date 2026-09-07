@@ -29,12 +29,19 @@ def verify_settings_owner(text: str) -> None:
         page_block = patch.block_text(text, f"if page == .{page} {{")
         require(".info(" in page_block, f"{page} footer/info row missing")
 
+    about = patch.block_text(text, "if page == .about {")
+    require("strings.jerkgramVersion, JerkgramReleaseIdentity.displayVersion" in about, "Jerkgram Version does not use release identity")
+    require("strings.build, JerkgramReleaseIdentity.build" in about, "Build row does not use release identity")
+    require("strings.telegramBase, JerkgramReleaseIdentity.telegramBase" in about, "Telegram Base row does not use release identity")
+    require("CFBundleShortVersionString" not in about, "Jerkgram Version still leaks Telegram CFBundleShortVersionString")
+    require('Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion")' not in about, "Build row still reads plist directly")
+
 
 def verify_release_strings(text: str) -> None:
     require(text.count(patch.IDENTITY_MARKER) == 1, "release identity marker count != 1")
-    about = patch.block_text(text, "var build124AboutSummary: String {")
-    require("JerkgramReleaseIdentity.aboutText" in about, "About is not bound to JerkgramReleaseIdentity")
-    require("Build 124 Canary" not in about, "stale Build124 About summary survived")
+    summary = patch.block_text(text, "var build124AboutSummary: String {")
+    require("JerkgramReleaseIdentity.aboutText" in summary, "legacy About summary is not bound to JerkgramReleaseIdentity")
+    require("Build 124 Canary" not in summary, "stale Build124 About summary survived")
 
     for token in (
         'displayVersion = "1.0.2 Beta 1"',
