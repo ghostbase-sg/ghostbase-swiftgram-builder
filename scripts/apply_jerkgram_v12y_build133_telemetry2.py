@@ -178,8 +178,8 @@ def patch_app_delegate_text(text: str) -> str:
 def main() -> None:
     require(APP_DELEGATE.is_file(), "AppDelegate missing: " + str(APP_DELEGATE))
     APP_DELEGATE.write_text(patch_app_delegate_text(APP_DELEGATE.read_text(encoding="utf-8")), encoding="utf-8")
-    print("[Build135 telemetry v2.1] SOURCE PATCHED")
-    print("[Build135 telemetry v2.1] appVersion=1.0.2-beta.2 / build=135 / schema=1 / full legacy payload + Moscow day counters")
+    print("[Build136 telemetry v2.1] SOURCE PATCHED")
+    print("[Build136 telemetry v2.1] appVersion=1.0.2-beta.2 / build=136 / schema=1 / full legacy payload + Moscow day counters")
 
 
 if __name__ == "__main__":

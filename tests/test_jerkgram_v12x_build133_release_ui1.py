@@ -138,7 +138,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         for token in (
             'displayVersion = "1.0.2 Beta 2"',
             'technicalVersion = "1.0.2-beta.2"',
-            'build = "135"',
+            'build = "136"',
             'telegramBase = "12.9.2"',
             '"Jerkgram Version \\(displayVersion)\\nBuild \\(build)\\nTelegram Base \\(telegramBase)"',
         ):
@@ -151,7 +151,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         source = FINAL_VERIFY.read_text(encoding="utf-8")
         self.assertIn('EXPECTED_BUNDLE = "com.jerkgram.ios"', source)
         self.assertIn('EXPECTED_TELEGRAM_VERSION = "12.9.2"', source)
-        self.assertIn('EXPECTED_BUILD = "135"', source)
+        self.assertIn('EXPECTED_BUILD = "136"', source)
         self.assertIn('EXPECTED_DISPLAY = "Jerkgram"', source)
         self.assertIn("CFBundleShortVersionString", source)
 

@@ -1,4 +1,4 @@
-name: Jerkgram 12.9.2 Build135
+name: Jerkgram 12.9.2 Build136
 
 on:
   workflow_dispatch:
@@ -145,13 +145,16 @@ jobs:
             scripts/verify_jerkgram_v12za_build134_gift_localization1.py \
             scripts/apply_jerkgram_v12zb_build135_visibility_runtime1.py \
             scripts/verify_jerkgram_v12zb_build135_visibility_runtime1.py \
+            scripts/apply_jerkgram_v12zc_build136_visible_order_cache1.py \
+            scripts/verify_jerkgram_v12zc_build136_visible_order_cache1.py \
             scripts/apply_jerkgram_v12w_build133_music_overlay1.py \
             scripts/verify_jerkgram_v12w_build133_music_overlay1.py \
             scripts/install_jerkgram_v12w_build133_probe_hook.py \
             scripts/jerkgram_finalize_build133_identity.py \
             scripts/verify_jerkgram_v12w_build133_final_ipa.py \
             scripts/jerkgram_publish_build133_artifact.py \
-            scripts/jerkgram_publish_build135_artifact.py
+            scripts/jerkgram_publish_build135_artifact.py \
+            scripts/jerkgram_publish_build136_artifact.py
 
           # Preserve the established late-release regression gates.
           python3 -m unittest tests.test_jerkgram_v12h_build119_hybrid_ui1
@@ -219,6 +222,7 @@ jobs:
           python3 -m unittest tests.test_jerkgram_v12z_build134_context_localization1
           python3 -m unittest tests.test_ghostbase_v10zb_seasonal_gifts_localization
           python3 -m unittest tests.test_jerkgram_v12zb_build135_visibility_runtime1
+          python3 -m unittest tests.test_jerkgram_v12zc_build136_visible_order_cache1
           python3 -m unittest tests.test_jerkgram_build134_release_contract
 
           # Canonical materialization chain. The legacy-named root installer delegates
@@ -270,6 +274,7 @@ jobs:
             work/swiftgram-src/submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift
             work/swiftgram-src/submodules/TelegramUI/Sources/ChatHistoryListNode.swift
             work/swiftgram-src/submodules/ChatListUI/Sources/Node/ChatListNodeLocation.swift
+            work/swiftgram-src/submodules/ChatListUI/Sources/Node/ChatListNodeEntries.swift
             work/swiftgram-src/submodules/TelegramUI/Sources/Chat/ChatControllerLoadDisplayNode.swift
             work/swiftgram-src/submodules/TelegramUI/Sources/SharedAccountContext.swift
             work/swiftgram-src/submodules/TelegramUI/Components/Gifts/GiftOptionsScreen/Sources/GiftOptionsScreen.swift
@@ -278,18 +283,18 @@ jobs:
             work/swiftgram-src/submodules/TelegramUI/Sources/OverlayAudioPlayerControllerNode.swift
           if-no-files-found: warn
 
-      - name: Publish Jerkgram Build135 artifact
+      - name: Publish Jerkgram Build136 artifact
         if: success()
         run: |
           set -e
-          python3 scripts/jerkgram_publish_build135_artifact.py
+          python3 scripts/jerkgram_publish_build136_artifact.py
 
-      - name: Upload Jerkgram Build135
+      - name: Upload Jerkgram Build136
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Jerkgram-Build135
+          name: Jerkgram-Build136
           path: |
-            artifacts/Jerkgram-Build135.ipa
-            artifacts/Jerkgram-Build135-info.txt
+            artifacts/Jerkgram-Build136.ipa
+            artifacts/Jerkgram-Build136-info.txt
           if-no-files-found: error
