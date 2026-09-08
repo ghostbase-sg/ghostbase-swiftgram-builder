@@ -7,6 +7,7 @@ import os
 ROOT = Path(os.environ.get("JERKGRAM_SOURCE_ROOT", os.environ.get("GHOSTBASE_SOURCE_ROOT", str(Path.cwd())))).resolve()
 
 BLOCKED_CONTEXT = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Privacy/BlockedPeersContext.swift"
+BLOCKED_PEERS = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Privacy/BlockedPeers.swift"
 STORE_MESSAGE = ROOT / "submodules/TelegramCore/Sources/ApiUtils/StoreMessage_Telegram.swift"
 ACCOUNT_VIEW_TRACKER = ROOT / "submodules/TelegramCore/Sources/State/AccountViewTracker.swift"
 DELETE_MESSAGES = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/DeleteMessages.swift"
@@ -14,6 +15,7 @@ CHAT_LIST = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/Chat
 NAVIGATION = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/EarliestUnseenPersonalMentionMessage.swift"
 CHAT_HISTORY_ENTRIES = ROOT / "submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift"
 CHAT_HISTORY_LIST = ROOT / "submodules/TelegramUI/Sources/ChatHistoryListNode.swift"
+CHAT_LIST_LOCATION = ROOT / "submodules/ChatListUI/Sources/Node/ChatListNodeLocation.swift"
 
 POLICY_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_POLICY1"
 STORE_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_STORE1"
@@ -23,6 +25,8 @@ CHAT_LIST_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_CHAT_LIST1
 NAV_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_NAVIGATION1"
 HISTORY_ENTRIES_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_MESSAGE_HISTORY2"
 HISTORY_REFRESH_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_VISIBILITY_REFRESH2"
+BLOCKED_MUTATION_MARKER = "// MARK: Jerkgram v1.2U BUILD134_BLOCKED_MUTATION_REFRESH1"
+CHAT_LIST_REFRESH_MARKER = "// MARK: Jerkgram v1.2U BUILD134_CHAT_LIST_REFRESH1"
 
 
 def require(value: bool, message: str) -> None:
@@ -55,6 +59,10 @@ def verify_chat_list_owner(text: str) -> None:
         "JerkgramBlockedReactionPolicy.hasVisibleUnseenReaction(" in text,
         "blocked-reaction policy is not used by chat-list owner",
     )
+    require("visibleMessages = messages.filter" in text, "chat-list preview messages are not filtered")
+    require("chatPeer: chatPeer" in text, "chat-list preview does not use rendered chat scope")
+    require("messages: visibleMessages.map(EngineMessage.init)" in text, "filtered preview payload is not rendered")
+    require("messages: messages.map(EngineMessage.init)" not in text, "raw chat-list preview payload survived")
     require(
         "hasUnseenMentions = (info.tagSummaryCount ?? 0) > (info.actionsSummaryCount ?? 0)" not in text,
         "stock mention assignment survived active owner",
@@ -98,6 +106,21 @@ def verify_policy(text: str) -> None:
     require("return attribute.hasUnseen" in text, "private/channel reaction activity is not stock")
     require("if !sawUnseen {" in text and "return true" in text, "unknown reaction evidence fallback missing")
     require("blockedPeerIdsByAccount" in text, "shared v12t blocked cache missing")
+    require("chatPeer: Peer?" in text, "explicit chat peer visibility overload missing")
+    require("public static func updateBlockedPeer(" in text, "incremental blocked-cache mutation missing")
+
+
+def verify_blocked_mutation_owner(text: str) -> None:
+    require(text.count(BLOCKED_MUTATION_MARKER) == 1, "direct block mutation marker count")
+    require("JerkgramBlockedReactionPolicy.updateBlockedPeer(" in text, "direct block API does not update policy")
+    require("accountPeerId: account.peerId" in text, "direct block API account scope missing")
+    require("isBlocked: isBlocked" in text, "direct block API mutation value missing")
+
+
+def verify_chat_list_refresh_owner(text: str) -> None:
+    require(text.count(CHAT_LIST_REFRESH_MARKER) == 1, "chat-list refresh marker count")
+    require("JerkgramBlockedReactionPolicy.presentationUpdates" in text, "chat-list is not subscribed to policy changes")
+    require(text.count("jerkgramBuild134ChatListPresentationUpdates(") == 3, "chat-list initial/navigation/scroll refresh coverage")
 
 
 def verify_store_owner(text: str) -> None:
@@ -134,7 +157,8 @@ def verify_refresh_owners(tracker: str, delete_messages: str) -> None:
 def verify_chat_history_owners(entries: str, history_list: str) -> None:
     require(entries.count(HISTORY_ENTRIES_MARKER) == 1, "chat history message-filter marker count")
     require("JerkgramBlockedReactionPolicy.isMessageHidden(" in entries, "chat history does not filter blocked message authors")
-    require("message: message" in entries, "chat history chat/author binding missing")
+    require("chatPeer: chatPeer" in entries, "chat history does not use resolved chat peer")
+    require("message: message" in entries, "chat history author binding missing")
     require(entries.index("JerkgramBlockedReactionPolicy.isMessageHidden(") < entries.index("count += 1"), "blocked message is counted before filtering")
 
     require(history_list.count(HISTORY_REFRESH_MARKER) == 1, "chat history visibility-refresh marker count")
@@ -143,11 +167,12 @@ def verify_chat_history_owners(entries: str, history_list: str) -> None:
 
 
 def main() -> None:
-    owners = (BLOCKED_CONTEXT, STORE_MESSAGE, ACCOUNT_VIEW_TRACKER, DELETE_MESSAGES, CHAT_LIST, NAVIGATION, CHAT_HISTORY_ENTRIES, CHAT_HISTORY_LIST)
+    owners = (BLOCKED_CONTEXT, BLOCKED_PEERS, STORE_MESSAGE, ACCOUNT_VIEW_TRACKER, DELETE_MESSAGES, CHAT_LIST, NAVIGATION, CHAT_HISTORY_ENTRIES, CHAT_HISTORY_LIST, CHAT_LIST_LOCATION)
     for path in owners:
         require(path.is_file(), "missing source owner: " + str(path))
 
     verify_policy(BLOCKED_CONTEXT.read_text(encoding="utf-8"))
+    verify_blocked_mutation_owner(BLOCKED_PEERS.read_text(encoding="utf-8"))
     verify_store_owner(STORE_MESSAGE.read_text(encoding="utf-8"))
     verify_refresh_owners(
         ACCOUNT_VIEW_TRACKER.read_text(encoding="utf-8"),
@@ -159,6 +184,7 @@ def main() -> None:
         CHAT_HISTORY_ENTRIES.read_text(encoding="utf-8"),
         CHAT_HISTORY_LIST.read_text(encoding="utf-8"),
     )
+    verify_chat_list_refresh_owner(CHAT_LIST_LOCATION.read_text(encoding="utf-8"))
     print("[Build133 blocked activity verifier] PREFLIGHT OWNER CHECKS GREEN")
 
 

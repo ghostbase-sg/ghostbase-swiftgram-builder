@@ -8,6 +8,7 @@ import re
 ROOT = Path(os.environ.get("JERKGRAM_SOURCE_ROOT", os.environ.get("GHOSTBASE_SOURCE_ROOT", str(Path.cwd())))).resolve()
 
 BLOCKED_CONTEXT = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Privacy/BlockedPeersContext.swift"
+BLOCKED_PEERS = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Privacy/BlockedPeers.swift"
 STORE_MESSAGE = ROOT / "submodules/TelegramCore/Sources/ApiUtils/StoreMessage_Telegram.swift"
 ACCOUNT_VIEW_TRACKER = ROOT / "submodules/TelegramCore/Sources/State/AccountViewTracker.swift"
 DELETE_MESSAGES = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/DeleteMessages.swift"
@@ -15,6 +16,7 @@ CHAT_LIST = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/Chat
 NAVIGATION = ROOT / "submodules/TelegramCore/Sources/TelegramEngine/Messages/EarliestUnseenPersonalMentionMessage.swift"
 CHAT_HISTORY_ENTRIES = ROOT / "submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift"
 CHAT_HISTORY_LIST = ROOT / "submodules/TelegramUI/Sources/ChatHistoryListNode.swift"
+CHAT_LIST_LOCATION = ROOT / "submodules/ChatListUI/Sources/Node/ChatListNodeLocation.swift"
 
 POLICY_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_POLICY1"
 STORE_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_STORE1"
@@ -24,6 +26,8 @@ CHAT_LIST_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_CHAT_LIST1
 NAV_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_ACTIVITY_NAVIGATION1"
 HISTORY_ENTRIES_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_MESSAGE_HISTORY2"
 HISTORY_REFRESH_MARKER = "// MARK: Jerkgram v1.2U BUILD133_BLOCKED_VISIBILITY_REFRESH2"
+BLOCKED_MUTATION_MARKER = "// MARK: Jerkgram v1.2U BUILD134_BLOCKED_MUTATION_REFRESH1"
+CHAT_LIST_REFRESH_MARKER = "// MARK: Jerkgram v1.2U BUILD134_CHAT_LIST_REFRESH1"
 V12T_POLICY_MARKER = "// MARK: Jerkgram v1.2T BUILD133_BLOCKED_REACTION_POLICY1"
 
 
@@ -83,7 +87,19 @@ POLICY_EXTENSION = r'''
     }
 
     public static func isMessageHidden(accountPeerId: PeerId, message: Message) -> Bool {
-        guard self.isGroupMessage(message) else {
+        return self.isMessageHidden(
+            accountPeerId: accountPeerId,
+            chatPeer: message.peers[message.id.peerId],
+            message: message
+        )
+    }
+
+    public static func isMessageHidden(
+        accountPeerId: PeerId,
+        chatPeer: Peer?,
+        message: Message
+    ) -> Bool {
+        guard self.isGroupChat(chatPeer) else {
             return false
         }
         guard self.hideBlockedMessages(accountPeerId: accountPeerId) else {
@@ -94,6 +110,29 @@ POLICY_EXTENSION = r'''
             return false
         }
         return self.isBlocked(accountPeerId: accountPeerId, peerId: authorId)
+    }
+
+    public static func updateBlockedPeer(
+        accountPeerId: PeerId,
+        peerId: PeerId,
+        isBlocked: Bool
+    ) {
+        let previous = self.isBlocked(accountPeerId: accountPeerId, peerId: peerId)
+        if previous == isBlocked {
+            return
+        }
+        let _ = self.blockedPeerIdsByAccount.modify { current in
+            var current = current
+            var peerIds = current[accountPeerId] ?? Set()
+            if isBlocked {
+                peerIds.insert(peerId)
+            } else {
+                peerIds.remove(peerId)
+            }
+            current[accountPeerId] = peerIds
+            return current
+        }
+        self.notifyPresentationChanged()
     }
 
     public static func hasVisibleUnseenReactionInGroup(
@@ -344,6 +383,31 @@ def patch_store_message(text: str) -> str:
     return text
 
 
+def patch_blocked_peers(text: str) -> str:
+    if BLOCKED_MUTATION_MARKER in text:
+        require(text.count(BLOCKED_MUTATION_MARKER) == 1, "BlockedPeers mutation marker is ambiguous")
+        return text
+
+    signature = "func _internal_requestUpdatePeerIsBlocked("
+    start = text.find(signature)
+    require(start >= 0, "direct block API owner missing")
+    next_function = text.find("\nfunc ", start + len(signature))
+    end = len(text) if next_function < 0 else next_function
+    block = text[start:end]
+    anchor = """                        if result != nil {
+                            transaction.updatePeerCachedData"""
+    replacement = """                        if result != nil {
+                            // MARK: Jerkgram v1.2U BUILD134_BLOCKED_MUTATION_REFRESH1
+                            JerkgramBlockedReactionPolicy.updateBlockedPeer(
+                                accountPeerId: account.peerId,
+                                peerId: peerId,
+                                isBlocked: isBlocked
+                            )
+                            transaction.updatePeerCachedData"""
+    block = replace_once(block, anchor, replacement, "direct block API success owner")
+    return text[:start] + block + text[end:]
+
+
 def patch_account_view_tracker(text: str) -> str:
     if TRACKER_MARKER in text:
         require(text.count(TRACKER_MARKER) == 1, "AccountViewTracker marker is ambiguous")
@@ -405,6 +469,24 @@ def patch_chat_list(text: str) -> str:
     require(text.count(owner_anchor) >= 1, "EngineChatList.Item extension owner missing")
     text = text.replace(owner_anchor, CHAT_LIST_HELPER + owner_anchor, 1)
 
+    rendered_peer_anchor = """            let renderedPeer = entryData.renderedPeer
+            let presence = entryData.presence"""
+    rendered_peer_replacement = """            let renderedPeer = entryData.renderedPeer
+            let visibleMessages: [Message]
+            if let accountPeerId, let chatPeer = renderedPeer.chatMainPeer {
+                visibleMessages = messages.filter { message in
+                    return !JerkgramBlockedReactionPolicy.isMessageHidden(
+                        accountPeerId: accountPeerId,
+                        chatPeer: chatPeer,
+                        message: message
+                    )
+                }
+            } else {
+                visibleMessages = messages
+            }
+            let presence = entryData.presence"""
+    text = replace_once(text, rendered_peer_anchor, rendered_peer_replacement, "ChatList preview message owner")
+
     mention_old = '''            var hasUnseenMentions = false
             if let info = tagSummaryInfo[ChatListEntryMessageTagSummaryKey(
                 tag: .unseenPersonalMessage,
@@ -425,7 +507,7 @@ def patch_chat_list(text: str) -> str:
                     stock: stockHasUnseenMentions,
                     expectedCount: outstandingCount,
                     accountPeerId: accountPeerId,
-                    messages: messages,
+                    messages: visibleMessages,
                     tag: .unseenPersonalMessage,
                     hidden: { accountPeerId, message in
                         JerkgramBlockedReactionPolicy.isMessageHidden(
@@ -455,12 +537,61 @@ def patch_chat_list(text: str) -> str:
                     stock: stockHasUnseenReactions,
                     expectedCount: outstandingCount,
                     accountPeerId: accountPeerId,
-                    messages: messages,
+                    messages: visibleMessages,
                     tag: .unseenReaction,
                     hidden: jerkgramBuild133ReactionActivityHidden
                 )
             }'''
-    return replace_once(text, reaction_old, reaction_new, "ChatList reaction summary owner")
+    text = replace_once(text, reaction_old, reaction_new, "ChatList reaction summary owner")
+    return replace_once(
+        text,
+        "                messages: messages.map(EngineMessage.init),",
+        "                messages: visibleMessages.map(EngineMessage.init),",
+        "ChatList rendered preview payload",
+    )
+
+
+def patch_chat_list_location(text: str) -> str:
+    if CHAT_LIST_REFRESH_MARKER in text:
+        require(text.count(CHAT_LIST_REFRESH_MARKER) == 1, "ChatList refresh marker is ambiguous")
+        return text
+
+    insertion_anchor = "\npublic func chatListViewForLocation("
+    helper = r'''
+
+// MARK: Jerkgram v1.2U BUILD134_CHAT_LIST_REFRESH1
+private func jerkgramBuild134ChatListPresentationUpdates<T>(
+    _ signal: Signal<T, NoError>
+) -> Signal<T, NoError> {
+    return combineLatest(
+        signal,
+        JerkgramBlockedReactionPolicy.presentationUpdates
+    )
+    |> map { value, _ in
+        return value
+    }
+}
+'''
+    text = replace_once(text, insertion_anchor, helper + insertion_anchor, "ChatList refresh helper owner")
+    text = replace_once(
+        text,
+        "            return signal\n            |> map { view, updateType -> ChatListNodeViewUpdate in",
+        "            return jerkgramBuild134ChatListPresentationUpdates(signal)\n            |> map { view, updateType -> ChatListNodeViewUpdate in",
+        "ChatList initial refresh signal",
+    )
+
+    pattern = re.compile(r'(?m)^(?P<indent>\s*)return (?P<signal>account\.viewTracker\.aroundChatListView\([^\n]+\))$')
+    matches = list(pattern.finditer(text))
+    require(len(matches) == 2, f"ChatList around refresh owners: expected 2, found {len(matches)}")
+    text = pattern.sub(
+        lambda match: (
+            f"{match.group('indent')}return jerkgramBuild134ChatListPresentationUpdates(\n"
+            f"{match.group('indent')}    {match.group('signal')}\n"
+            f"{match.group('indent')})"
+        ),
+        text,
+    )
+    return text
 
 
 def _replace_navigation_function(text: str, function_name: str, kind: str) -> str:
@@ -528,6 +659,7 @@ def patch_chat_history_entries(text: str) -> str:
         // switching the option off restores the messages immediately.
         if JerkgramBlockedReactionPolicy.isMessageHidden(
             accountPeerId: context.account.peerId,
+            chatPeer: chatPeer,
             message: message
         ) {
             continue loop
@@ -557,12 +689,13 @@ def patch_chat_history_list(text: str) -> str:
 
 
 def main() -> None:
-    owners = (BLOCKED_CONTEXT, STORE_MESSAGE, ACCOUNT_VIEW_TRACKER, DELETE_MESSAGES, CHAT_LIST, NAVIGATION, CHAT_HISTORY_ENTRIES, CHAT_HISTORY_LIST)
+    owners = (BLOCKED_CONTEXT, BLOCKED_PEERS, STORE_MESSAGE, ACCOUNT_VIEW_TRACKER, DELETE_MESSAGES, CHAT_LIST, NAVIGATION, CHAT_HISTORY_ENTRIES, CHAT_HISTORY_LIST, CHAT_LIST_LOCATION)
     for path in owners:
         require(path.is_file(), "missing source owner: " + str(path))
 
     patched = {
         BLOCKED_CONTEXT: patch_policy(BLOCKED_CONTEXT.read_text(encoding="utf-8")),
+        BLOCKED_PEERS: patch_blocked_peers(BLOCKED_PEERS.read_text(encoding="utf-8")),
         STORE_MESSAGE: patch_store_message(STORE_MESSAGE.read_text(encoding="utf-8")),
         ACCOUNT_VIEW_TRACKER: patch_account_view_tracker(ACCOUNT_VIEW_TRACKER.read_text(encoding="utf-8")),
         DELETE_MESSAGES: patch_delete_messages(DELETE_MESSAGES.read_text(encoding="utf-8")),
@@ -570,6 +703,7 @@ def main() -> None:
         NAVIGATION: patch_navigation(NAVIGATION.read_text(encoding="utf-8")),
         CHAT_HISTORY_ENTRIES: patch_chat_history_entries(CHAT_HISTORY_ENTRIES.read_text(encoding="utf-8")),
         CHAT_HISTORY_LIST: patch_chat_history_list(CHAT_HISTORY_LIST.read_text(encoding="utf-8")),
+        CHAT_LIST_LOCATION: patch_chat_list_location(CHAT_LIST_LOCATION.read_text(encoding="utf-8")),
     }
 
     for path, text in patched.items():

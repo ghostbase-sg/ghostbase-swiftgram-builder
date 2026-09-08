@@ -116,7 +116,30 @@ class Build133BlockedActivityContracts(unittest.TestCase):
             self.fail("chat history entry owner is not patchable")
         updated = patch_entries(fixture)
         self.assertIn("JerkgramBlockedReactionPolicy.isMessageHidden(", updated)
+        self.assertIn("chatPeer: chatPeer", updated)
         self.assertLess(updated.index("JerkgramBlockedReactionPolicy.isMessageHidden("), updated.index("count += 1"))
+
+    def test_chat_list_filters_the_rendered_message_preview_with_explicit_chat_peer(self):
+        source = (REPO / "work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Messages/ChatList.swift").read_text()
+        updated = self.patch.patch_chat_list(source)
+        self.assertIn("visibleMessages = messages.filter", updated)
+        self.assertIn("chatPeer: chatPeer", updated)
+        self.assertIn("messages: visibleMessages.map(EngineMessage.init)", updated)
+        self.assertNotIn("messages: messages.map(EngineMessage.init)", updated)
+
+    def test_direct_block_api_updates_the_shared_policy_cache(self):
+        source = (REPO / "work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Privacy/BlockedPeers.swift").read_text()
+        updated = self.patch.patch_blocked_peers(source)
+        self.assertIn("JerkgramBlockedReactionPolicy.updateBlockedPeer(", updated)
+        self.assertIn("accountPeerId: account.peerId", updated)
+        self.assertIn("isBlocked: isBlocked", updated)
+
+    def test_chat_list_rebuilds_when_blocked_visibility_changes(self):
+        source = (REPO / "work/swiftgram-src/submodules/ChatListUI/Sources/Node/ChatListNodeLocation.swift").read_text()
+        updated = self.patch.patch_chat_list_location(source)
+        self.assertIn("JerkgramBlockedReactionPolicy.presentationUpdates", updated)
+        self.assertIn("jerkgramBuild134ChatListPresentationUpdates(", updated)
+        self.assertEqual(updated.count("jerkgramBuild134ChatListPresentationUpdates("), 3)
 
     def test_chat_history_reacts_to_block_list_and_setting_changes(self):
         fixture = '''        let historyViewUpdateValue = historyViewUpdate
