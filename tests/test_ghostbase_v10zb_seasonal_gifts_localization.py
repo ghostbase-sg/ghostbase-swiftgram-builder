@@ -22,8 +22,21 @@ class SeasonalGiftLocalizationContracts(unittest.TestCase):
         self.assertEqual(self.patch.seasonal_labels("en"), ("Seasonal", "Seasonal"))
         self.assertEqual(self.patch.seasonal_labels("de"), ("Seasonal", "Seasonal"))
 
-    def test_generated_source_uses_selected_presentation_language(self):
-        source = (REPO / "work/swiftgram-src/submodules/TelegramUI/Components/Gifts/GiftOptionsScreen/Sources/GiftOptionsScreen.swift").read_text()
+    def test_materialized_seasonal_owner_uses_selected_presentation_language(self):
+        # This Build134 overlay runs after the legacy seasonal-gifts patch in
+        # bazel_build_probe_official.sh. Unit tests run before materialization,
+        # so model the two exact owners produced by that prerequisite instead
+        # of reading the still-clean Official Telegram checkout.
+        source = '''
+                        TabSelectorComponent.Item(
+                            id: AnyHashable(StarsFilter.seasonal.rawValue),
+                            title: "Сезонные"
+                        )
+                        ribbon = GiftItemComponent.Ribbon(
+                            text: "Сезонный",
+                            color: .blue
+                        )
+'''
         updated = self.patch.patch_source(source)
         self.assertIn('strings.baseLanguageCode == "ru" ? "Сезонные" : "Seasonal"', updated)
         self.assertIn('environment.strings.baseLanguageCode == "ru" ? "Сезонный" : "Seasonal"', updated)
