@@ -46,7 +46,7 @@ def verify_release_strings(text: str) -> None:
     for token in (
         'displayVersion = "1.0.2 Beta 2"',
         'technicalVersion = "1.0.2-beta.2"',
-        'build = "134"',
+        'build = "135"',
         'telegramBase = "12.9.2"',
         '"Jerkgram Version \\(displayVersion)\\nBuild \\(build)\\nTelegram Base \\(telegramBase)"',
     ):
@@ -59,7 +59,7 @@ def main() -> None:
     verify_settings_owner(SETTINGS.read_text(encoding="utf-8"))
     verify_release_strings(STRINGS.read_text(encoding="utf-8"))
     print("[Build133 release UI verify] PREFLIGHT GREEN")
-    print("[Build134 release UI verify] 26pt rounded interactive rows + plain status text / 1.0.2 Beta 2 / Build 134 / Telegram Base 12.9.2")
+    print("[Build135 release UI verify] 26pt rounded interactive rows + plain status text / 1.0.2 Beta 2 / Build 135 / Telegram Base 12.9.2")
 
 
 if __name__ == "__main__":

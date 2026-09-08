@@ -8,7 +8,7 @@ import zipfile
 
 EXPECTED_BUNDLE = "com.jerkgram.ios"
 EXPECTED_TELEGRAM_VERSION = "12.9.2"
-EXPECTED_BUILD = "134"
+EXPECTED_BUILD = "135"
 EXPECTED_DISPLAY = "Jerkgram"
 EXTENSION_SUFFIXES = {
     "BroadcastUploadExtension.appex": "BroadcastUpload",
@@ -39,7 +39,7 @@ def verify_build133_identity(ipa: Path) -> None:
 
         require(info.get("CFBundleIdentifier") == EXPECTED_BUNDLE, "CFBundleIdentifier is not com.jerkgram.ios")
         require(info.get("CFBundleShortVersionString") == EXPECTED_TELEGRAM_VERSION, "CFBundleShortVersionString changed from Telegram 12.9.2")
-        require(str(info.get("CFBundleVersion")) == EXPECTED_BUILD, "CFBundleVersion is not 134")
+        require(str(info.get("CFBundleVersion")) == EXPECTED_BUILD, "CFBundleVersion is not 135")
         require(info.get("CFBundleDisplayName") == EXPECTED_DISPLAY, "CFBundleDisplayName is not Jerkgram")
         require(info.get("CFBundleName") == EXPECTED_DISPLAY, "CFBundleName is not Jerkgram")
         require(not (app / "embedded.mobileprovision").exists(), "main embedded.mobileprovision present")
@@ -53,18 +53,18 @@ def verify_build133_identity(ipa: Path) -> None:
                 extension_info = plistlib.load(file)
             expected = EXPECTED_BUNDLE + "." + suffix
             require(extension_info.get("CFBundleIdentifier") == expected, f"{name} CFBundleIdentifier is not {expected}")
-            require(str(extension_info.get("CFBundleVersion")) == EXPECTED_BUILD, f"{name} CFBundleVersion is not 134")
+            require(str(extension_info.get("CFBundleVersion")) == EXPECTED_BUILD, f"{name} CFBundleVersion is not 135")
             require(not (extension / "embedded.mobileprovision").exists(), f"{name} embedded.mobileprovision present")
 
 
 def main() -> None:
     ipa = Path(sys.argv[1] if len(sys.argv) > 1 else "work/swiftgram-src/ghostbase-final/GhostBase.ipa").resolve()
     # The canonical workflow runs the complete Build130 verifier immediately
-    # before the Build134 namespace rebase. Re-running that old-namespace gate
+    # before the Build135 namespace rebase. Re-running that old-namespace gate
     # here would reject the requested com.jerkgram.ios identity.
     verify_build133_identity(ipa)
-    print("[Build134 final IPA verify] GREEN")
-    print("[Build134 final IPA verify] com.jerkgram.ios / Telegram 12.9.2 / Build 134")
+    print("[Build135 final IPA verify] GREEN")
+    print("[Build135 final IPA verify] com.jerkgram.ios / Telegram 12.9.2 / Build 135")
 
 
 if __name__ == "__main__":

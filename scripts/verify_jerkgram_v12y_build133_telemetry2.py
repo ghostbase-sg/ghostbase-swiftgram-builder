@@ -20,7 +20,7 @@ def verify_release_identity(text: str) -> None:
     for token in (
         'displayVersion = "1.0.2 Beta 2"',
         'technicalVersion = "1.0.2-beta.2"',
-        'build = "134"',
+        'build = "135"',
         'telegramBase = "12.9.2"',
     ):
         require(token in text, "shared release identity token missing: " + token)
@@ -46,8 +46,8 @@ def main() -> None:
     require(STRINGS.is_file(), "JerkgramStrings missing: " + str(STRINGS))
     verify_release_identity(STRINGS.read_text(encoding="utf-8"))
     verify_telemetry_owner(APP_DELEGATE.read_text(encoding="utf-8"))
-    print("[Build134 telemetry v2.1 verify] PREFLIGHT GREEN")
-    print("[Build134 telemetry v2.1 verify] 1.0.2-beta.2 / build 134 / full legacy payload + Moscow counters preserved")
+    print("[Build135 telemetry v2.1 verify] PREFLIGHT GREEN")
+    print("[Build135 telemetry v2.1 verify] 1.0.2-beta.2 / build 135 / full legacy payload + Moscow counters preserved")
 
 
 if __name__ == "__main__":
