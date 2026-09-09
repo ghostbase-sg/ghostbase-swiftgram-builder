@@ -74,10 +74,41 @@ jobs:
           rm -rf "$DST/ghostbase-final"
           rm -rf "$DST/.github/workflows"
 
-          # The build compatibility pass mutates Telegram's example configuration.
-          # Restore this entire subtree byte-for-byte from the Official Telegram HEAD.
+          # Restore Telegram's public example configuration exactly.
           rm -rf "$DST/build-system/example-configuration"
           git -C "$SRC" archive HEAD build-system/example-configuration | tar -x -C "$DST"
+
+          # The compatibility build pass temporarily carries the signing identity
+          # used by the private build environment. Public source is signer-neutral,
+          # as in the previous Stable publication: replace only those exact private
+          # carrier constants with Telegram's public source carriers.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('export/Jerkgram-1.0.2-source')
+          text_names = {'BUILD', 'BUILD.bazel'}
+          text_suffixes = {
+              '.swift', '.bzl', '.plist', '.entitlements', '.json', '.m', '.mm', '.h',
+              '.xcconfig', '.pbxproj', '.yml', '.yaml', '.md', '.txt', '.sh', '.py'
+          }
+          changed = 0
+          for p in root.rglob('*'):
+              if not p.is_file() or (p.name not in text_names and p.suffix not in text_suffixes):
+                  continue
+              try:
+                  s = p.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              old = s
+              s = s.replace('app.pumpkin6584.lion7414', 'ph.telegra.Telegraph')
+              s = re.sub(r'group\.4a348a9b186b700c\.[0-9]+', 'group.ph.telegra.Telegraph', s)
+              s = s.replace('5VZ6BJLW8Q', 'C67CF9S4VU')
+              if s != old:
+                  p.write_text(s, encoding='utf-8')
+                  changed += 1
+          print(f'public identity neutralization files: {changed}')
+          PY
 
           python3 - <<'PY'
           from pathlib import Path
