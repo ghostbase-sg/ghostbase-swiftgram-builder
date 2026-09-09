@@ -1,5 +1,6 @@
 from pathlib import Path
 import importlib.util
+import sys
 import unittest
 
 
@@ -62,6 +63,27 @@ class Build133TelemetryV2Tests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
+
+    def load_verifier(self):
+        spec = importlib.util.spec_from_file_location("build133_telemetry2_verify", VERIFY)
+        module = importlib.util.module_from_spec(spec)
+        sys.path.insert(0, str(REPO / "scripts"))
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            sys.path.pop(0)
+        return module
+
+    def test_release_verifier_accepts_current_shared_build_identity(self):
+        verifier = self.load_verifier()
+        verifier.verify_release_identity('''
+public enum JerkgramReleaseIdentity {
+    public static let displayVersion = "1.0.2 Beta 2"
+    public static let technicalVersion = "1.0.2-beta.2"
+    public static let build = "137"
+    public static let telegramBase = "12.9.2"
+}
+''')
 
     def test_payload_uses_beta2_shared_release_identity_and_keeps_legacy_ids(self):
         module = self.load_patch()

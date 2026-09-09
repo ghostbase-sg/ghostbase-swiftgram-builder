@@ -4,6 +4,7 @@ from pathlib import Path
 import os
 
 import apply_jerkgram_v12y_build133_telemetry2 as patch
+import apply_jerkgram_v12x_build133_release_ui1 as release
 
 
 ROOT = Path(os.environ.get("JERKGRAM_SOURCE_ROOT", os.environ.get("GHOSTBASE_SOURCE_ROOT", str(Path.cwd())))).resolve()
@@ -18,10 +19,10 @@ def require(value: bool, message: str) -> None:
 
 def verify_release_identity(text: str) -> None:
     for token in (
-        'displayVersion = "1.0.2 Beta 2"',
-        'technicalVersion = "1.0.2-beta.2"',
-        'build = "136"',
-        'telegramBase = "12.9.2"',
+        f'displayVersion = "{release.DISPLAY_VERSION}"',
+        f'technicalVersion = "{release.TECHNICAL_VERSION}"',
+        f'build = "{release.BUILD}"',
+        f'telegramBase = "{release.TELEGRAM_BASE}"',
     ):
         require(token in text, "shared release identity token missing: " + token)
 
@@ -46,8 +47,8 @@ def main() -> None:
     require(STRINGS.is_file(), "JerkgramStrings missing: " + str(STRINGS))
     verify_release_identity(STRINGS.read_text(encoding="utf-8"))
     verify_telemetry_owner(APP_DELEGATE.read_text(encoding="utf-8"))
-    print("[Build136 telemetry v2.1 verify] PREFLIGHT GREEN")
-    print("[Build136 telemetry v2.1 verify] 1.0.2-beta.2 / build 136 / full legacy payload + Moscow counters preserved")
+    print(f"[Build{release.BUILD} telemetry v2.1 verify] PREFLIGHT GREEN")
+    print(f"[Build{release.BUILD} telemetry v2.1 verify] {release.TECHNICAL_VERSION} / build {release.BUILD} / full legacy payload + Moscow counters preserved")
 
 
 if __name__ == "__main__":
