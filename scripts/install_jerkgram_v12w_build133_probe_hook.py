@@ -95,7 +95,7 @@ def patch_probe(text: str) -> str:
         final_block = (
             BUILD130_FINAL_ANCHOR
             + "\n\n" + FINAL_MARKER
-            + '\necho\necho "== Jerkgram Build137 final identity =="\n'
+            + '\necho\necho "== Jerkgram Build138 final identity =="\n'
             + "\n".join(line(name, "ghostbase-final/GhostBase.ipa") for name in FINAL_ORDERED)
         )
         text = text.replace(BUILD130_FINAL_ANCHOR, final_block, 1)
@@ -107,7 +107,8 @@ def patch_probe(text: str) -> str:
     require(text.index(BUILD130_FINAL_ANCHOR) < final_positions[0], "Build133 final identity must follow Build130 verification")
     text = text.replace("== Jerkgram Build134 final identity ==", "== Jerkgram Build136 final identity ==")
     text = text.replace("== Jerkgram Build135 final identity ==", "== Jerkgram Build136 final identity ==")
-    text = text.replace("== Jerkgram Build136 final identity ==", "== Jerkgram Build137 final identity ==")
+    text = text.replace("== Jerkgram Build136 final identity ==", "== Jerkgram Build138 final identity ==")
+    text = text.replace("== Jerkgram Build137 final identity ==", "== Jerkgram Build138 final identity ==")
     return text
 
 
@@ -116,8 +117,8 @@ def main() -> None:
     subprocess.check_call([sys.executable, str(BASE_INSTALLER)])
     require(PROBE.is_file(), "probe missing: " + str(PROBE))
     PROBE.write_text(patch_probe(PROBE.read_text(encoding="utf-8")), encoding="utf-8")
-    print("[Build137 probe hook] GREEN")
-    print("[Build137 probe hook] Telemetry 2.1 -> reactions/activity/navigation -> Settings2 -> localization -> visible preview/unread/account runtime -> visible ordering/cache -> performance hardening -> music -> final source gate -> Bazel")
+    print("[Build138 probe hook] GREEN")
+    print("[Build138 probe hook] Telemetry 2.1 -> reactions/activity/navigation -> Settings2 -> localization -> visible preview/unread/account runtime -> visible ordering/cache -> performance hardening -> music -> final source gate -> Bazel")
 
 
 if __name__ == "__main__":

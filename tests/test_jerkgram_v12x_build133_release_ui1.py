@@ -132,17 +132,19 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         self.assertNotIn("CFBundleShortVersionString", about)
         self.assertNotIn("CFBundleVersion", about)
 
-    def test_release_strings_hold_beta2_display_and_technical_identity(self):
+    def test_release_strings_hold_stable_display_and_technical_identity(self):
         module = self.load_patch()
         updated = module.patch_strings_text(STRINGS_FIXTURE)
         for token in (
-            'displayVersion = "1.0.2 Beta 2"',
-            'technicalVersion = "1.0.2-beta.2"',
-            'build = "137"',
+            'displayVersion = "1.0.2"',
+            'technicalVersion = "1.0.2"',
+            'build = "138"',
             'telegramBase = "12.9.2"',
             '"Jerkgram Version \\(displayVersion)\\nBuild \\(build)\\nTelegram Base \\(telegramBase)"',
         ):
             self.assertIn(token, updated)
+        self.assertNotIn("Beta", updated)
+        self.assertNotIn("beta", updated)
         summary = module.block_text(updated, "var build124AboutSummary: String {")
         self.assertIn("JerkgramReleaseIdentity.aboutText", summary)
         self.assertNotIn("Build 124 Canary", summary)
@@ -150,18 +152,18 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
     def test_existing_release_identity_advances_to_current_build(self):
         module = self.load_patch()
         previous = module.patch_strings_text(STRINGS_FIXTURE).replace(
-            'build = "137"', 'build = "136"'
+            'build = "138"', 'build = "137"'
         )
         updated = module.patch_strings_text(previous)
-        self.assertIn('build = "137"', updated)
-        self.assertNotIn('build = "136"', updated)
+        self.assertIn('build = "138"', updated)
+        self.assertNotIn('build = "137"', updated)
         self.assertEqual(updated, module.patch_strings_text(updated))
 
     def test_final_ipa_contract_keeps_last_good_public_telegram_identity(self):
         source = FINAL_VERIFY.read_text(encoding="utf-8")
         self.assertIn('EXPECTED_BUNDLE = "com.jerkgram.ios"', source)
         self.assertIn('EXPECTED_TELEGRAM_VERSION = "12.9.2"', source)
-        self.assertIn('EXPECTED_BUILD = "137"', source)
+        self.assertIn('EXPECTED_BUILD = "138"', source)
         self.assertIn('EXPECTED_DISPLAY = "Jerkgram"', source)
         self.assertIn("CFBundleShortVersionString", source)
 
@@ -174,8 +176,8 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
             "systemStyle: .glass",
             "JerkgramReleaseIdentity",
             "CFBundleShortVersionString",
-            "1.0.2 Beta 2",
-            "1.0.2-beta.2",
+            'displayVersion = "1.0.2"',
+            'technicalVersion = "1.0.2"',
             "Telegram Base",
         ):
             self.assertIn(token, source)

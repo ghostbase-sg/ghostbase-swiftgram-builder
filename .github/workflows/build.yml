@@ -1,4 +1,4 @@
-name: Jerkgram 12.9.2 Build137
+name: Jerkgram 12.9.2 Build138
 
 on:
   workflow_dispatch:
@@ -158,7 +158,7 @@ jobs:
             scripts/verify_jerkgram_v12w_build133_final_ipa.py \
             scripts/jerkgram_publish_build133_artifact.py \
             scripts/jerkgram_publish_build135_artifact.py \
-            scripts/jerkgram_publish_build137_artifact.py
+            scripts/jerkgram_publish_build138_artifact.py
 
           # Preserve the established late-release regression gates.
           python3 -m unittest tests.test_jerkgram_v12h_build119_hybrid_ui1
@@ -289,18 +289,18 @@ jobs:
             work/swiftgram-src/submodules/TelegramUI/Sources/OverlayAudioPlayerControllerNode.swift
           if-no-files-found: warn
 
-      - name: Publish Jerkgram Build137 artifact
+      - name: Publish Jerkgram Build138 artifact
         if: success()
         run: |
           set -e
-          python3 scripts/jerkgram_publish_build137_artifact.py
+          python3 scripts/jerkgram_publish_build138_artifact.py
 
-      - name: Upload Jerkgram Build137
+      - name: Upload Jerkgram Build138
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Jerkgram-Build137
+          name: Jerkgram-Build138
           path: |
-            artifacts/Jerkgram-Build137.ipa
-            artifacts/Jerkgram-Build137-info.txt
+            artifacts/Jerkgram-Build138.ipa
+            artifacts/Jerkgram-Build138-info.txt
           if-no-files-found: error

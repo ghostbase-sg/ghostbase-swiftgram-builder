@@ -44,9 +44,9 @@ def verify_release_strings(text: str) -> None:
     require("Build 124 Canary" not in summary, "stale Build124 About summary survived")
 
     for token in (
-        'displayVersion = "1.0.2 Beta 2"',
-        'technicalVersion = "1.0.2-beta.2"',
-        'build = "137"',
+        'displayVersion = "1.0.2"',
+        'technicalVersion = "1.0.2"',
+        'build = "138"',
         'telegramBase = "12.9.2"',
         '"Jerkgram Version \\(displayVersion)\\nBuild \\(build)\\nTelegram Base \\(telegramBase)"',
     ):
@@ -59,7 +59,7 @@ def main() -> None:
     verify_settings_owner(SETTINGS.read_text(encoding="utf-8"))
     verify_release_strings(STRINGS.read_text(encoding="utf-8"))
     print("[Build133 release UI verify] PREFLIGHT GREEN")
-    print("[Build137 release UI verify] 26pt rounded interactive rows + plain status text / 1.0.2 Beta 2 / Build 137 / Telegram Base 12.9.2")
+    print("[Build138 release UI verify] 26pt rounded interactive rows + plain status text / 1.0.2 / Build 138 / Telegram Base 12.9.2")
 
 
 if __name__ == "__main__":

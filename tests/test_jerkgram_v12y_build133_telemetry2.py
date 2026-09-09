@@ -78,14 +78,14 @@ class Build133TelemetryV2Tests(unittest.TestCase):
         verifier = self.load_verifier()
         verifier.verify_release_identity('''
 public enum JerkgramReleaseIdentity {
-    public static let displayVersion = "1.0.2 Beta 2"
-    public static let technicalVersion = "1.0.2-beta.2"
-    public static let build = "137"
+    public static let displayVersion = "1.0.2"
+    public static let technicalVersion = "1.0.2"
+    public static let build = "138"
     public static let telegramBase = "12.9.2"
 }
 ''')
 
-    def test_payload_uses_beta2_shared_release_identity_and_keeps_legacy_ids(self):
+    def test_payload_uses_stable_shared_release_identity_and_keeps_legacy_ids(self):
         module = self.load_patch()
         updated = module.patch_app_delegate_text(APP_FIXTURE)
         self.assertIn("JerkgramReleaseIdentity.technicalVersion", updated)

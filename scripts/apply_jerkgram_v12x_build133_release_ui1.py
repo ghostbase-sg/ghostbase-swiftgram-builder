@@ -10,9 +10,9 @@ STRINGS = ROOT / "submodules/TelegramPresentationData/Sources/JerkgramStrings.sw
 
 MARKER = "// MARK: Jerkgram v1.2X BUILD133_RELEASE_UI1"
 IDENTITY_MARKER = "// MARK: Jerkgram v1.2X BUILD133_RELEASE_IDENTITY1"
-DISPLAY_VERSION = "1.0.2 Beta 2"
-TECHNICAL_VERSION = "1.0.2-beta.2"
-BUILD = "137"
+DISPLAY_VERSION = "1.0.2"
+TECHNICAL_VERSION = "1.0.2"
+BUILD = "138"
 TELEGRAM_BASE = "12.9.2"
 
 
@@ -188,7 +188,7 @@ def main() -> None:
     SETTINGS.write_text(patch_settings_text(SETTINGS.read_text(encoding="utf-8")), encoding="utf-8")
     STRINGS.write_text(patch_strings_text(STRINGS.read_text(encoding="utf-8")), encoding="utf-8")
     print("[Build133 release UI] SOURCE PATCHED")
-    print("[Build137 release UI] Jerkgram 1.0.2 Beta 2 / Build 137 / Telegram Base 12.9.2; 26pt glass interactive rows + plain status text")
+    print("[Build138 release UI] Jerkgram 1.0.2 / Build 138 / Telegram Base 12.9.2; 26pt glass interactive rows + plain status text")
 
 
 if __name__ == "__main__":

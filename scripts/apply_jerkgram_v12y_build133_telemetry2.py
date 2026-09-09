@@ -135,7 +135,7 @@ def verify_transformed(text: str) -> None:
     require('"schema":1' in text, "schema=1 disappeared")
     require('"dayId":dayId' in text and '"weekId":weekId' in text and '"monthId":monthId' in text, "legacy period IDs disappeared")
     require('payload["installReceiptId"]=receipt' in text, "installReceiptId disappeared")
-    require("JerkgramReleaseIdentity.technicalVersion" in text, "technical Beta 2 identity is not used")
+    require("JerkgramReleaseIdentity.technicalVersion" in text, "technical release identity is not used")
     require("JerkgramReleaseIdentity.build" in text, "Build133 identity is not used")
     require('forInfoDictionaryKey:"CFBundleShortVersionString"' not in text, "telemetry still reports Telegram 12.9.2 as appVersion")
     for field in ('"analyticsDay":analyticsDay', '"analyticsDayId":analyticsDayId', '"openCountToday":openCountToday'):
@@ -178,8 +178,8 @@ def patch_app_delegate_text(text: str) -> str:
 def main() -> None:
     require(APP_DELEGATE.is_file(), "AppDelegate missing: " + str(APP_DELEGATE))
     APP_DELEGATE.write_text(patch_app_delegate_text(APP_DELEGATE.read_text(encoding="utf-8")), encoding="utf-8")
-    print("[Build136 telemetry v2.1] SOURCE PATCHED")
-    print("[Build136 telemetry v2.1] appVersion=1.0.2-beta.2 / build=136 / schema=1 / full legacy payload + Moscow day counters")
+    print("[Build138 telemetry v2.1] SOURCE PATCHED")
+    print("[Build138 telemetry v2.1] appVersion=1.0.2 / build=138 / schema=1 / full legacy payload + Moscow day counters")
 
 
 if __name__ == "__main__":
