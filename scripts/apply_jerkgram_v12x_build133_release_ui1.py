@@ -12,7 +12,7 @@ MARKER = "// MARK: Jerkgram v1.2X BUILD133_RELEASE_UI1"
 IDENTITY_MARKER = "// MARK: Jerkgram v1.2X BUILD133_RELEASE_IDENTITY1"
 DISPLAY_VERSION = "1.0.2 Beta 2"
 TECHNICAL_VERSION = "1.0.2-beta.2"
-BUILD = "136"
+BUILD = "137"
 TELEGRAM_BASE = "12.9.2"
 
 
@@ -151,7 +151,11 @@ def patch_strings_text(text: str) -> str:
         require(text.count(IDENTITY_MARKER) == 1, "release identity marker is ambiguous")
         about = block_text(text, about_signature)
         require("JerkgramReleaseIdentity.aboutText" in about, "legacy About summary is not release-bound")
-        return text
+        identity_start = text.index(IDENTITY_MARKER)
+        _, identity_end = block_bounds(text, "public enum JerkgramReleaseIdentity")
+        tail = text[identity_end:].strip("\n")
+        updated = text[:identity_start].rstrip() + "\n\n" + IDENTITY_SOURCE.strip() + "\n"
+        return updated if not tail else updated + "\n" + tail + "\n"
 
     require("BUILD124_SETTINGS_REDESIGN_STRINGS1" in text, "Build124 Settings strings prerequisite missing")
     about = block_text(text, about_signature)
@@ -163,7 +167,7 @@ def patch_strings_text(text: str) -> str:
         return JerkgramReleaseIdentity.aboutText
     }''',
     )
-    text = text.rstrip() + IDENTITY_SOURCE + "\n"
+    text = text.rstrip() + "\n\n" + IDENTITY_SOURCE.strip() + "\n"
 
     about = block_text(text, about_signature)
     require("JerkgramReleaseIdentity.aboutText" in about, "legacy About summary release binding missing")
@@ -184,7 +188,7 @@ def main() -> None:
     SETTINGS.write_text(patch_settings_text(SETTINGS.read_text(encoding="utf-8")), encoding="utf-8")
     STRINGS.write_text(patch_strings_text(STRINGS.read_text(encoding="utf-8")), encoding="utf-8")
     print("[Build133 release UI] SOURCE PATCHED")
-    print("[Build136 release UI] Jerkgram 1.0.2 Beta 2 / Build 136 / Telegram Base 12.9.2; 26pt glass interactive rows + plain status text")
+    print("[Build137 release UI] Jerkgram 1.0.2 Beta 2 / Build 137 / Telegram Base 12.9.2; 26pt glass interactive rows + plain status text")
 
 
 if __name__ == "__main__":

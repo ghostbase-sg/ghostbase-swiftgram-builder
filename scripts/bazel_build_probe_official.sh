@@ -675,7 +675,7 @@ python3 ../../scripts/verify_jerkgram_v12s_build130_siri_failclosed1.py
 
 # JERKGRAM_V12W_BUILD133_RUNTIME_REPAIR_HOOK
 echo
-echo "== Jerkgram Build136 runtime repair =="
+echo "== Jerkgram Build137 performance hardening =="
 python3 ../../scripts/apply_jerkgram_v12t_build133_blocked_reactions1.py
 python3 ../../scripts/verify_jerkgram_v12t_build133_blocked_reactions1.py
 python3 ../../scripts/apply_jerkgram_v12u_build133_blocked_activity2.py
@@ -694,6 +694,10 @@ python3 ../../scripts/apply_jerkgram_v12zb_build135_visibility_runtime1.py
 python3 ../../scripts/verify_jerkgram_v12zb_build135_visibility_runtime1.py
 python3 ../../scripts/apply_jerkgram_v12zc_build136_visible_order_cache1.py
 python3 ../../scripts/verify_jerkgram_v12zc_build136_visible_order_cache1.py
+python3 ../../scripts/apply_jerkgram_v12zd_build137_performance1.py
+python3 ../../scripts/verify_jerkgram_v12zd_build137_performance1.py
+python3 ../../scripts/apply_jerkgram_build137_performance2.py
+python3 ../../scripts/verify_jerkgram_build137_performance2.py
 python3 ../../scripts/apply_jerkgram_v12w_build133_music_overlay1.py
 python3 ../../scripts/verify_jerkgram_v12w_build133_music_overlay1.py
 python3 ../../scripts/verify_jerkgram_v12w_build133_runtime_repair1.py
@@ -840,6 +844,6 @@ python3 ../../scripts/verify_jerkgram_v12s_build130_final_ipa.py ghostbase-final
 
 # JERKGRAM_V12W_BUILD133_FINAL_IDENTITY_HOOK
 echo
-echo "== Jerkgram Build136 final identity =="
+echo "== Jerkgram Build137 final identity =="
 python3 ../../scripts/jerkgram_finalize_build133_identity.py ghostbase-final/GhostBase.ipa
 python3 ../../scripts/verify_jerkgram_v12w_build133_final_ipa.py ghostbase-final/GhostBase.ipa

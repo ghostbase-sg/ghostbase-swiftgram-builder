@@ -35,6 +35,10 @@ SOURCE_ORDERED = (
     "verify_jerkgram_v12zb_build135_visibility_runtime1.py",
     "apply_jerkgram_v12zc_build136_visible_order_cache1.py",
     "verify_jerkgram_v12zc_build136_visible_order_cache1.py",
+    "apply_jerkgram_v12zd_build137_performance1.py",
+    "verify_jerkgram_v12zd_build137_performance1.py",
+    "apply_jerkgram_build137_performance2.py",
+    "verify_jerkgram_build137_performance2.py",
     "apply_jerkgram_v12w_build133_music_overlay1.py",
     "verify_jerkgram_v12w_build133_music_overlay1.py",
     "verify_jerkgram_v12w_build133_runtime_repair1.py",
@@ -62,7 +66,7 @@ def patch_probe(text: str) -> str:
 
     source_payload = (
         SOURCE_MARKER
-        + '\necho\necho "== Jerkgram Build136 runtime repair =="\n'
+        + '\necho\necho "== Jerkgram Build137 performance hardening =="\n'
         + "\n".join(line(name) for name in SOURCE_ORDERED)
     )
     if SOURCE_MARKER not in text:
@@ -91,7 +95,7 @@ def patch_probe(text: str) -> str:
         final_block = (
             BUILD130_FINAL_ANCHOR
             + "\n\n" + FINAL_MARKER
-            + '\necho\necho "== Jerkgram Build136 final identity =="\n'
+            + '\necho\necho "== Jerkgram Build137 final identity =="\n'
             + "\n".join(line(name, "ghostbase-final/GhostBase.ipa") for name in FINAL_ORDERED)
         )
         text = text.replace(BUILD130_FINAL_ANCHOR, final_block, 1)
@@ -103,6 +107,7 @@ def patch_probe(text: str) -> str:
     require(text.index(BUILD130_FINAL_ANCHOR) < final_positions[0], "Build133 final identity must follow Build130 verification")
     text = text.replace("== Jerkgram Build134 final identity ==", "== Jerkgram Build136 final identity ==")
     text = text.replace("== Jerkgram Build135 final identity ==", "== Jerkgram Build136 final identity ==")
+    text = text.replace("== Jerkgram Build136 final identity ==", "== Jerkgram Build137 final identity ==")
     return text
 
 
@@ -111,8 +116,8 @@ def main() -> None:
     subprocess.check_call([sys.executable, str(BASE_INSTALLER)])
     require(PROBE.is_file(), "probe missing: " + str(PROBE))
     PROBE.write_text(patch_probe(PROBE.read_text(encoding="utf-8")), encoding="utf-8")
-    print("[Build136 probe hook] GREEN")
-    print("[Build136 probe hook] Telemetry 2.1 -> reactions/activity/navigation -> Settings2 -> localization -> visible preview/unread/account runtime -> visible ordering/cache -> music -> final source gate -> Bazel")
+    print("[Build137 probe hook] GREEN")
+    print("[Build137 probe hook] Telemetry 2.1 -> reactions/activity/navigation -> Settings2 -> localization -> visible preview/unread/account runtime -> visible ordering/cache -> performance hardening -> music -> final source gate -> Bazel")
 
 
 if __name__ == "__main__":

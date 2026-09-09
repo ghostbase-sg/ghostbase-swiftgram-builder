@@ -22,11 +22,11 @@ def load(path: Path, name: str):
     return module
 
 
-class Build136ReleaseContract(unittest.TestCase):
+class Build137ReleaseContract(unittest.TestCase):
     def test_identity_uses_requested_bundle_and_build(self):
         identity = load(REPO / "scripts/jerkgram_finalize_build133_identity.py", "identity134")
         self.assertEqual(identity.PUBLIC_BUNDLE, "com.jerkgram.ios")
-        self.assertEqual(identity.BUILD, "136")
+        self.assertEqual(identity.BUILD, "137")
         self.assertEqual(identity.TELEGRAM_VERSION, "12.9.2")
         self.assertEqual(identity.JERKGRAM_DISPLAY_VERSION, "1.0.2 Beta 2")
         self.assertEqual(identity.JERKGRAM_TECHNICAL_VERSION, "1.0.2-beta.2")
@@ -42,11 +42,11 @@ class Build136ReleaseContract(unittest.TestCase):
             hook.SOURCE_ORDERED.index("apply_jerkgram_v12x_build133_release_ui1.py"),
         )
 
-    def test_workflow_publishes_build136_artifact(self):
+    def test_workflow_publishes_build137_artifact(self):
         workflow = (REPO / ".github/workflows/build.yml").read_text(encoding="utf-8")
-        self.assertIn("name: Jerkgram 12.9.2 Build136", workflow)
-        self.assertIn("name: Jerkgram-Build136", workflow)
-        self.assertIn("artifacts/Jerkgram-Build136.ipa", workflow)
+        self.assertIn("name: Jerkgram 12.9.2 Build137", workflow)
+        self.assertIn("name: Jerkgram-Build137", workflow)
+        self.assertIn("artifacts/Jerkgram-Build137.ipa", workflow)
         self.assertIn("tests.test_jerkgram_build134_release_contract", workflow)
 
     def test_finalizer_rebases_main_and_all_extension_bundle_identifiers(self):
@@ -75,7 +75,7 @@ class Build136ReleaseContract(unittest.TestCase):
                         "com.jerkgram.ios." + suffix,
                     )
 
-    def test_final_verifier_accepts_only_complete_build136_namespace(self):
+    def test_final_verifier_accepts_only_complete_build137_namespace(self):
         verifier = load(REPO / "scripts/verify_jerkgram_v12w_build133_final_ipa.py", "verify_identity134")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -85,7 +85,7 @@ class Build136ReleaseContract(unittest.TestCase):
             (app / "Info.plist").write_bytes(plistlib.dumps({
                 "CFBundleIdentifier": "com.jerkgram.ios",
                 "CFBundleShortVersionString": "12.9.2",
-                "CFBundleVersion": "136",
+                "CFBundleVersion": "137",
                 "CFBundleDisplayName": "Jerkgram",
                 "CFBundleName": "Jerkgram",
             }))
@@ -94,9 +94,9 @@ class Build136ReleaseContract(unittest.TestCase):
                 extension.mkdir()
                 (extension / "Info.plist").write_bytes(plistlib.dumps({
                     "CFBundleIdentifier": "com.jerkgram.ios." + suffix,
-                    "CFBundleVersion": "136",
+                    "CFBundleVersion": "137",
                 }))
-            ipa = root / "Build136.ipa"
+            ipa = root / "Build137.ipa"
             with zipfile.ZipFile(ipa, "w") as archive:
                 for path in (root / "Payload").rglob("*"):
                     if path.is_file():
