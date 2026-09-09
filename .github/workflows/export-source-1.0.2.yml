@@ -68,9 +68,17 @@ jobs:
           rm -rf export
           mkdir -p "$DST"
           rsync -a "$SRC/" "$DST/"
+
+          # Generated build configuration is private build input, not public source.
           rm -rf "$DST/build-input"
           rm -rf "$DST/ghostbase-final"
           rm -rf "$DST/.github/workflows"
+
+          # The build compatibility pass mutates Telegram's example configuration.
+          # Restore this entire subtree byte-for-byte from the Official Telegram HEAD.
+          rm -rf "$DST/build-system/example-configuration"
+          git -C "$SRC" archive HEAD build-system/example-configuration | tar -x -C "$DST"
+
           python3 - <<'PY'
           from pathlib import Path
           import shutil
@@ -91,6 +99,7 @@ jobs:
         run: |
           set -e
           ROOT="export/Jerkgram-1.0.2-source"
+          SRC="work/swiftgram-src"
           test -f "$ROOT/Telegram/BUILD"
           test -f "$ROOT/submodules/SettingsUI/Sources/GhostBase/GhostBaseSettingsController.swift"
           test ! -e "$ROOT/build-input"
@@ -110,12 +119,28 @@ jobs:
             exit 1
           fi
 
-          SECRET_CONFIG="$(grep -RIlE 'JERKGRAM_TELEGRAM_API_HASH|telegram_api_hash[[:space:]]*=[[:space:]]*"[0-9a-fA-F]{32}"' "$ROOT" 2>/dev/null || true)"
-          if [ -n "$SECRET_CONFIG" ]; then
-            echo "$SECRET_CONFIG" | sed -n '1,120p'
-            echo "ERROR: generated Telegram API credential material leaked into public source"
+          PRIVATE_IDENTITY="$(grep -RIlE 'app\.pumpkin6584\.lion7414|group\.4a348a9b186b700c\.[0-9]+|5VZ6BJLW8Q' "$ROOT" 2>/dev/null || true)"
+          if [ -n "$PRIVATE_IDENTITY" ]; then
+            echo "$PRIVATE_IDENTITY" | sed -n '1,120p'
+            echo "ERROR: private build/signing identity leaked into public source"
             exit 1
           fi
+
+          SECRET_MARKERS="$(grep -RIlE 'JERKGRAM_TELEGRAM_API_HASH' "$ROOT" 2>/dev/null || true)"
+          if [ -n "$SECRET_MARKERS" ]; then
+            echo "$SECRET_MARKERS" | sed -n '1,120p'
+            echo "ERROR: private Telegram API credential marker leaked into public source"
+            exit 1
+          fi
+
+          TMP_OFFICIAL="$(mktemp -d)"
+          git -C "$SRC" archive HEAD build-system/example-configuration | tar -x -C "$TMP_OFFICIAL"
+          if ! diff -qr "$TMP_OFFICIAL/build-system/example-configuration" "$ROOT/build-system/example-configuration"; then
+            echo "ERROR: public example configuration differs from Official Telegram HEAD"
+            exit 1
+          fi
+          rm -rf "$TMP_OFFICIAL"
+          echo "Official example configuration restored exactly"
 
           FILE_COUNT="$(find "$ROOT" -type f | wc -l | tr -d ' ')"
           echo "public source files: $FILE_COUNT"
