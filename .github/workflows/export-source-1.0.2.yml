@@ -1,0 +1,143 @@
+name: Jerkgram 1.0.2 Source Export
+
+on:
+  push:
+    branches:
+      - release/source-export-1.0.2
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: macos-26
+    env:
+      JERKGRAM_TELEGRAM_API_ID: ${{ secrets.JERKGRAM_TELEGRAM_API_ID }}
+      JERKGRAM_TELEGRAM_API_HASH: ${{ secrets.JERKGRAM_TELEGRAM_API_HASH }}
+
+    steps:
+      - name: Checkout release source owner
+        uses: actions/checkout@v4
+
+      - name: Prepare clean Official Telegram source
+        run: |
+          set -e
+          chmod +x scripts/prepare_source_official.sh
+          scripts/prepare_source_official.sh
+
+      - name: Prepare canonical Jerkgram materialization chain
+        run: |
+          set -e
+          python3 scripts/apply_ghostbase_v10q_sh2_ot2_combined.py
+          python3 scripts/install_jerkgram_v12d_build115_probe_hook.py
+          python3 scripts/install_jerkgram_v12e_build116_probe_hook.py
+          python3 scripts/install_jerkgram_v12f_build117_probe_hook.py
+          python3 scripts/install_jerkgram_v12g_build118_probe_hook.py
+          python3 scripts/install_jerkgram_v12h_build119_probe_hook.py
+          python3 scripts/install_jerkgram_v12i_build120_probe_hook.py
+          python3 scripts/install_jerkgram_v12j_build121_probe_hook.py
+          python3 scripts/install_jerkgram_v12k_build122_probe_hook.py
+          python3 scripts/install_jerkgram_v12w_build133_probe_hook.py
+          python3 scripts/verify_jerkgram_v12m_build124_wiring1.py
+          python3 scripts/verify_jerkgram_v12n_build125_wiring1.py
+
+      - name: Materialize final Build138 source without Bazel
+        run: |
+          set -e
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/bazel_build_probe_official.sh')
+          text = p.read_text(encoding='utf-8')
+          anchor = '"$BAZEL_BIN" build ${BAZEL_EXTRA_ARGS:-}'
+          if text.count(anchor) != 1:
+              raise SystemExit('unexpected Bazel anchor count')
+          text = text.replace(anchor, 'echo "== source-only export stop before Bazel =="\nexit 0\n\n' + anchor, 1)
+          out = Path('scripts/source_only_materialize_build138.sh')
+          out.write_text(text, encoding='utf-8')
+          PY
+          chmod +x scripts/source_only_materialize_build138.sh
+          bash -n scripts/source_only_materialize_build138.sh
+          scripts/source_only_materialize_build138.sh
+
+      - name: Stage public source tree
+        run: |
+          set -e
+          SRC="work/swiftgram-src"
+          DST="export/Jerkgram-1.0.2-source"
+          test -d "$SRC"
+          rm -rf export
+          mkdir -p "$DST"
+          rsync -a "$SRC/" "$DST/"
+          rm -rf "$DST/build-input"
+          rm -rf "$DST/ghostbase-final"
+          rm -rf "$DST/.github/workflows"
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          root = Path('export/Jerkgram-1.0.2-source')
+          for p in sorted(root.rglob('.git'), key=lambda x: len(x.parts), reverse=True):
+              if p.is_dir() and not p.is_symlink():
+                  shutil.rmtree(p)
+              else:
+                  p.unlink(missing_ok=True)
+          for p in root.glob('bazel-*'):
+              if p.is_dir() and not p.is_symlink():
+                  shutil.rmtree(p)
+              else:
+                  p.unlink(missing_ok=True)
+          PY
+
+      - name: Public-source safety gates
+        run: |
+          set -e
+          ROOT="export/Jerkgram-1.0.2-source"
+          test -f "$ROOT/Telegram/BUILD"
+          test -f "$ROOT/submodules/SettingsUI/Sources/GhostBase/GhostBaseSettingsController.swift"
+          test ! -e "$ROOT/build-input"
+          test ! -e "$ROOT/.github/workflows"
+
+          INTERNAL_PATHS="$(find "$ROOT" -print | grep -Ei '/(apply|verify|install)_(ghostbase|jerkgram)_[^/]*\.py$|/jerkgram_publish_build[^/]*\.py$|/gb_patch_[^/]*\.py$|/fix_ghostbase_[^/]*\.py$' || true)"
+          if [ -n "$INTERNAL_PATHS" ]; then
+            echo "$INTERNAL_PATHS" | sed -n '1,120p'
+            echo "ERROR: internal patch/build script filenames leaked into public source"
+            exit 1
+          fi
+
+          INTERNAL_LINKS="$(grep -RIlE 'ghostbase-sg/jerkgram-telegram-builder|/root/gb_builder|GHOSTBASE_(REPORTS|INBOX|EXPORT)|work/swiftgram-src|cronusk1809@gmail\.com' "$ROOT" 2>/dev/null || true)"
+          if [ -n "$INTERNAL_LINKS" ]; then
+            echo "$INTERNAL_LINKS" | sed -n '1,120p'
+            echo "ERROR: internal builder linkage leaked into public source"
+            exit 1
+          fi
+
+          SECRET_CONFIG="$(grep -RIlE 'JERKGRAM_TELEGRAM_API_HASH|telegram_api_hash[[:space:]]*=[[:space:]]*"[0-9a-fA-F]{32}"' "$ROOT" 2>/dev/null || true)"
+          if [ -n "$SECRET_CONFIG" ]; then
+            echo "$SECRET_CONFIG" | sed -n '1,120p'
+            echo "ERROR: generated Telegram API credential material leaked into public source"
+            exit 1
+          fi
+
+          FILE_COUNT="$(find "$ROOT" -type f | wc -l | tr -d ' ')"
+          echo "public source files: $FILE_COUNT"
+          if [ "$FILE_COUNT" -lt 40000 ]; then
+            echo "ERROR: public source tree is unexpectedly small"
+            exit 1
+          fi
+
+      - name: Package source-only artifact
+        run: |
+          set -e
+          tar -cJf Jerkgram-1.0.2-source-export.tar.xz -C export Jerkgram-1.0.2-source
+          shasum -a 256 Jerkgram-1.0.2-source-export.tar.xz > Jerkgram-1.0.2-source-export.sha256
+          cat Jerkgram-1.0.2-source-export.sha256
+          ls -lh Jerkgram-1.0.2-source-export.tar.xz
+
+      - name: Upload source-only artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jerkgram-1.0.2-source-export
+          path: |
+            Jerkgram-1.0.2-source-export.tar.xz
+            Jerkgram-1.0.2-source-export.sha256
+          if-no-files-found: error
+          retention-days: 7
