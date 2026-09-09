@@ -60,6 +60,8 @@ def visible_activity(*, stock, summary_count, loaded, blocked, enabled=True, cha
     existing = [(actor, exists) for actor, exists in loaded if exists]
     if summary_count <= 0:
         return False
+    if len(existing) < summary_count:
+        return stock
     for actor, _ in existing:
         if actor is None or actor not in blocked:
             return stock
@@ -240,6 +242,11 @@ private func jerkgramBuild133ActivityVisible(
     }
 
     let taggedMessages = messages.filter { $0.tags.contains(tag) }
+    guard taggedMessages.count >= expectedCount else {
+        // The chat-list preview is not the complete mention/reaction history.
+        // Without complete evidence, preserve Telegram's summary badge.
+        return stock
+    }
     for message in taggedMessages {
         if !hidden(accountPeerId, message) {
             return true
@@ -463,6 +470,24 @@ def patch_delete_messages(text: str) -> str:
 def patch_chat_list(text: str) -> str:
     if CHAT_LIST_MARKER in text:
         require(text.count(CHAT_LIST_MARKER) == 1, "ChatList marker is ambiguous")
+        completeness_anchor = "    let taggedMessages = messages.filter { $0.tags.contains(tag) }\n"
+        if "taggedMessages.count >= expectedCount" not in text:
+            text = replace_once(
+                text,
+                completeness_anchor,
+                completeness_anchor
+                + "    guard taggedMessages.count >= expectedCount else {\n"
+                + "        // The chat-list preview is not the complete mention/reaction history.\n"
+                + "        // Without complete evidence, preserve Telegram's summary badge.\n"
+                + "        return stock\n"
+                + "    }\n",
+                "ChatList activity evidence completeness",
+            )
+        text = text.replace(
+            "messages: visibleMessages,\n                    tag:",
+            "messages: messages,\n                    tag:",
+        )
+        require(text.count("messages: messages,\n                    tag:") == 2, "raw activity evidence owners")
         return text
 
     owner_anchor = "\nextension EngineChatList.Item {"
@@ -507,7 +532,7 @@ def patch_chat_list(text: str) -> str:
                     stock: stockHasUnseenMentions,
                     expectedCount: outstandingCount,
                     accountPeerId: accountPeerId,
-                    messages: visibleMessages,
+                    messages: messages,
                     tag: .unseenPersonalMessage,
                     hidden: { accountPeerId, message in
                         JerkgramBlockedReactionPolicy.isMessageHidden(
@@ -537,7 +562,7 @@ def patch_chat_list(text: str) -> str:
                     stock: stockHasUnseenReactions,
                     expectedCount: outstandingCount,
                     accountPeerId: accountPeerId,
-                    messages: visibleMessages,
+                    messages: messages,
                     tag: .unseenReaction,
                     hidden: jerkgramBuild133ReactionActivityHidden
                 )

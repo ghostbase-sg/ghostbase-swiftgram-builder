@@ -127,6 +127,12 @@ class Build133BlockedActivityContracts(unittest.TestCase):
         self.assertIn("messages: visibleMessages.map(EngineMessage.init)", updated)
         self.assertNotIn("messages: messages.map(EngineMessage.init)", updated)
 
+    def test_chat_list_activity_uses_raw_tagged_evidence_not_filtered_preview(self):
+        source = (REPO / "work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Messages/ChatList.swift").read_text()
+        updated = self.patch.patch_chat_list(source)
+        self.assertEqual(updated.count("messages: messages,\n                    tag:"), 2)
+        self.assertIn("messages: visibleMessages.map(EngineMessage.init)", updated)
+
     def test_direct_block_api_updates_the_shared_policy_cache(self):
         source = (REPO / "work/swiftgram-src/submodules/TelegramCore/Sources/TelegramEngine/Privacy/BlockedPeers.swift").read_text()
         updated = self.patch.patch_blocked_peers(source)
@@ -174,12 +180,23 @@ class Build133BlockedActivityContracts(unittest.TestCase):
             )
         )
 
-    def test_chat_list_activity_hides_stale_summary_if_loaded_targets_are_blocked(self):
-        self.assertFalse(
+    def test_chat_list_activity_preserves_stock_when_summary_evidence_is_incomplete(self):
+        self.assertTrue(
             self.patch.visible_activity(
                 stock=True,
                 summary_count=2,
                 loaded=[("A", True)],
+                blocked={"A"},
+                enabled=True,
+            )
+        )
+
+    def test_chat_list_activity_preserves_stock_when_target_is_outside_preview(self):
+        self.assertTrue(
+            self.patch.visible_activity(
+                stock=True,
+                summary_count=1,
+                loaded=[],
                 blocked={"A"},
                 enabled=True,
             )

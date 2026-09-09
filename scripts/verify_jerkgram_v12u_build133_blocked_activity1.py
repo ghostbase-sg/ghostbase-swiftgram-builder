@@ -49,6 +49,8 @@ def verify_chat_list_owner(text: str) -> None:
     require("private func jerkgramBuild133ActivityVisible(" in text, "ChatList evidence helper missing")
     require("private func jerkgramBuild133ReactionActivityHidden(" in text, "reaction activity helper missing")
     require("expectedCount: outstandingCount" in text, "bounded evidence count missing")
+    require("taggedMessages.count >= expectedCount" in text, "incomplete summary evidence is not fail-open")
+    require(text.count("messages: messages,\n                    tag:") == 2, "activity checks do not use raw tagged evidence")
     require("tag: .unseenPersonalMessage" in text, "mention activity tag missing")
     require("tag: .unseenReaction" in text, "reaction activity tag missing")
     require(
