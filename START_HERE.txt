@@ -1,0 +1,3 @@
+Jerkgram Web v4 — live development preview
+
+Open index.html through GitHub Pages. This branch is a self-contained preview build and does not replace the production site.
