@@ -76,9 +76,15 @@ def refresh_at_exit(text, signature):
 def patch_settings(text):
     signature = "private func jerkgramPersistChangedSettings("
     block = base.function_block(text, signature)
-    pattern = r"(let jerkgramSynchronousRuntimeSettingKeys: Set<String> = \[[\s\S]*?\])(?!\.union)"
-    if "].union(JerkgramHotSettings.keys)" not in block:
-        block, count = re.subn(pattern, r"\1.union(JerkgramHotSettings.keys)", block, count=1)
+    wrong = r"(let jerkgramSynchronousRuntimeSettingKeys: Set<String> = )(\[[\s\S]*?\])\.union\(JerkgramHotSettings\.keys\)"
+    correct = r"\1Set<String>(\2).union(JerkgramHotSettings.keys)"
+    if "Set<String>([" not in block:
+        block, repaired = re.subn(wrong, correct, block, count=1)
+        pattern = r"(let jerkgramSynchronousRuntimeSettingKeys: Set<String> = )(\[[\s\S]*?\])(?!\.union)"
+        if repaired == 0:
+            block, count = re.subn(pattern, correct, block, count=1)
+        else:
+            count = repaired
         base.require(count == 1, "settings synchronous key set missing")
         text = base.replace_function(text, signature, block)
     return refresh_at_exit(text, signature)

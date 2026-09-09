@@ -71,7 +71,9 @@ return messages
 }
 """
         actual = self.patch.patch_settings(source)
-        self.assertIn("].union(JerkgramHotSettings.keys)", actual)
+        self.assertIn("Set<String>([", actual)
+        self.assertIn("]).union(JerkgramHotSettings.keys)", actual)
+        self.assertNotIn("\n    ].union(JerkgramHotSettings.keys)", actual)
         self.assertEqual(actual, self.patch.patch_settings(actual))
 
     def test_readstats_keeps_results_and_removes_empty_diagnostic_bindings(self):

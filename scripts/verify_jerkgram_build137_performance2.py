@@ -51,7 +51,8 @@ def main():
 
     settings = patch.base.SETTINGS.read_text()
     persist = patch.base.function_block(settings, "private func jerkgramPersistChangedSettings(")
-    require("].union(JerkgramHotSettings.keys)" in persist, "cached settings are not written synchronously")
+    require("Set<String>([" in persist and "]).union(JerkgramHotSettings.keys)" in persist,
+            "cached settings are not combined as a Swift Set")
     require("defer { JerkgramHotSettings.invalidate() }" in persist, "settings snapshot invalidation missing")
 
     supported_reads = 0
