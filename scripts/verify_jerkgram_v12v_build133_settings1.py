@@ -62,6 +62,17 @@ def verify_strings(text: str) -> None:
     require("Locale.current" not in text[text.index(STRINGS_MARKER):], "Build133 strings must not consult iOS Locale.current")
 
 
+def synchronous_runtime_keys(text: str) -> str:
+    match = re.search(
+        r"let jerkgramSynchronousRuntimeSettingKeys: Set<String>\s*=\s*"
+        r"(?:Set<String>\s*\()?\s*\[(?P<keys>[\s\S]*?)\]\s*\)?"
+        r"(?:\.union\(JerkgramHotSettings\.keys\))?",
+        text,
+    )
+    require(match is not None, "synchronous runtime key owner missing or malformed")
+    return match.group("keys")
+
+
 def verify_settings(text: str) -> None:
     require(text.count(MARKER) == 1, "Settings marker count != 1")
     require(text.count('static let hideBlockedMessages = "jerkgram.Messages.HideBlockedMessages"') == 1, "blocked-message storage key count != 1")
@@ -70,11 +81,7 @@ def verify_settings(text: str) -> None:
     require("var hideBlockedReactions: Bool" in text, "blocked-reaction state missing")
     require("updated.hideBlockedMessages = value" in text, "blocked-message update case missing")
     require("updated.hideBlockedReactions = value" in text, "blocked-reaction update case missing")
-    sync_start = text.find("let jerkgramSynchronousRuntimeSettingKeys: Set<String> = [")
-    require(sync_start >= 0, "synchronous runtime key owner missing")
-    sync_end = text.find("\n    ]", sync_start)
-    require(sync_end >= 0, "synchronous runtime key owner is unbalanced")
-    synchronous_keys = text[sync_start:sync_end]
+    synchronous_keys = synchronous_runtime_keys(text)
     require("GhostBaseKey.hideBlockedMessages," in synchronous_keys, "blocked-message synchronous key missing")
     require("GhostBaseKey.hideBlockedReactions," in synchronous_keys, "blocked-reaction synchronous key missing")
     require(text.count("JerkgramBlockedReactionPolicy.notifySettingsChanged()") == 1, "blocked runtime refresh notification count != 1")

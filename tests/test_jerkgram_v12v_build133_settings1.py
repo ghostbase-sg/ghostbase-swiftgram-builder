@@ -128,6 +128,18 @@ private func f() {
         self.assertTrue(callable(verify.verify_strings))
         self.assertTrue(callable(verify.verify_settings))
 
+    def test_verifier_reads_runtime_keys_after_late_set_union_overlay(self):
+        verify = self.load(VERIFY, "build133_settings_verify_late_overlay")
+        source = '''let jerkgramSynchronousRuntimeSettingKeys: Set<String> = Set<String>([
+    GhostBaseKey.scheduledSend,
+    GhostBaseKey.hideBlockedMessages,
+    GhostBaseKey.hideBlockedReactions,
+]).union(JerkgramHotSettings.keys)
+'''
+        keys = verify.synchronous_runtime_keys(source)
+        self.assertIn("GhostBaseKey.hideBlockedMessages,", keys)
+        self.assertIn("GhostBaseKey.hideBlockedReactions,", keys)
+
 
 if __name__ == "__main__":
     unittest.main()
