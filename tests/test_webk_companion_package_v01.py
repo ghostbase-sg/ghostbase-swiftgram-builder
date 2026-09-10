@@ -41,6 +41,27 @@ def test_companion_packaging_is_notification_only(tmp_path: Path):
     (public / "STALE-BUNDLE.js").write_text("drop")
     (dist / "app-123.js").write_text("keep built runtime")
     (dist / "app-123.js.map").write_text("drop map")
+    (dist / "index.html").write_text(
+        '''<!doctype html>
+<html>
+<body>
+<!--[if IE]><p class="browserupgrade"><a href="https://browsehappy.com/">upgrade</a></p><![endif]-->
+<div class="sidebar-left-overlay"></div>
+<div class="whole page-chats" style="display: none;" id="page-chats">
+  <div id="main-columns" class="tabs-container" data-animation="navigation">
+    <div class="tabs-tab chatlist-container sidebar sidebar-left main-column" id="column-left">
+      <div id="folders-container"></div>
+      <div class="sidebar-search" id="search-container"></div>
+    </div>
+    <div class="tabs-tab main-column" id="column-center"></div>
+    <div class="tabs-tab sidebar sidebar-right main-column" id="column-right"></div>
+  </div>
+</div>
+<div id="stories-viewer"></div>
+</body>
+</html>
+'''
+    )
 
     packager = Path(__file__).parents[1] / "webpush-companion/package_webk_dist_v01.py"
     result = subprocess.run([sys.executable, str(packager), str(root)], capture_output=True, text=True)
@@ -63,3 +84,24 @@ def test_companion_packaging_is_notification_only(tmp_path: Path):
     assert not (dist / "assets/tgs").exists()
     assert not (dist / "assets/audio").exists()
     assert not (dist / "STALE-BUNDLE.js").exists()
+
+    # Keep only the two inert DOM roots that stock Web K's startup expects.
+    # The actual chat list/search/sidebars/stories surface must not ship in the
+    # Jerkgram Notifications deployable HTML.
+    html = (dist / "index.html").read_text()
+    assert 'id="page-chats"' in html
+    assert 'id="main-columns"' in html
+    assert 'style="display: none;"' in html
+    for forbidden in (
+        "sidebar-left-overlay",
+        "chatlist-container",
+        "folders-container",
+        "search-container",
+        "column-left",
+        "column-center",
+        "column-right",
+        "sidebar-search",
+        "stories-viewer",
+        "browsehappy.com",
+    ):
+        assert forbidden not in html
