@@ -10,10 +10,13 @@ if not APP_DELEGATE.exists():
 
 text = APP_DELEGATE.read_text()
 marker = "private func handleJerkgramPushPairingUrl(_ url: URL) -> Bool"
+external_marker = "private func handleJerkgramExternalUrl(_ url: URL) -> Bool"
 
 # This script is intentionally layered after apply_jerkgram_push_click_bridge_v01.py.
-# That bridge owns the dedicated jerkgram:// scheme and the final open-url dispatch.
-dispatch_anchor = """    func application(_ application: UIApplication, open url: URL, sourceApplication: String?, annotation: Any) -> Bool {\n        if self.handleJerkgramPushUrl(url) {\n            return true\n        }\n        self.openUrl(url: url)\n        return true\n    }\n"""
+# The click bridge owns jerkgram:// registration and /push/open semantics. This
+# layer adds /push/authorize and makes one shared Jerkgram dispatch reachable from
+# every external-URL UIApplicationDelegate entrypoint present in Telegram 12.9.2.
+click_annotation_anchor = """    func application(_ application: UIApplication, open url: URL, sourceApplication: String?, annotation: Any) -> Bool {\n        if self.handleJerkgramPushUrl(url) {\n            return true\n        }\n        self.openUrl(url: url)\n        return true\n    }\n"""
 
 helper = r'''    // MARK: Jerkgram Push Companion one-tap authorization bridge
     private func handleJerkgramPushPairingUrl(_ url: URL) -> Bool {
@@ -166,22 +169,52 @@ helper = r'''    // MARK: Jerkgram Push Companion one-tap authorization bridge
         return true
     }
 
+    // One bounded dispatch shared by every Telegram external-URL callback.
+    // /authorize has priority over /open; all other URLs fall through unchanged.
+    private func handleJerkgramExternalUrl(_ url: URL) -> Bool {
+        if self.handleJerkgramPushPairingUrl(url) {
+            return true
+        }
+        if self.handleJerkgramPushUrl(url) {
+            return true
+        }
+        return false
+    }
+
 '''
 
 if marker not in text:
-    if text.count(dispatch_anchor) != 1:
-        raise SystemExit(f"[jerkgram-push-pairing] expected one click bridge dispatch anchor, found {text.count(dispatch_anchor)}")
-    text = text.replace(dispatch_anchor, helper + dispatch_anchor, 1)
+    if text.count(click_annotation_anchor) != 1:
+        raise SystemExit(
+            f"[jerkgram-push-pairing] expected one click bridge dispatch anchor, found {text.count(click_annotation_anchor)}"
+        )
+    text = text.replace(click_annotation_anchor, helper + click_annotation_anchor, 1)
+elif external_marker not in text:
+    raise SystemExit("[jerkgram-push-pairing] pairing helper exists without shared external URL dispatcher")
 
-paired_dispatch = """    func application(_ application: UIApplication, open url: URL, sourceApplication: String?, annotation: Any) -> Bool {\n        if self.handleJerkgramPushPairingUrl(url) {\n            return true\n        }\n        if self.handleJerkgramPushUrl(url) {\n            return true\n        }\n        self.openUrl(url: url)\n        return true\n    }\n"""
+legacy_anchor = """    func application(_ application: UIApplication, open url: URL, sourceApplication: String?) -> Bool {\n        self.openUrl(url: url)\n        return true\n    }\n"""
+legacy_patched = """    func application(_ application: UIApplication, open url: URL, sourceApplication: String?) -> Bool {\n        if self.handleJerkgramExternalUrl(url) {\n            return true\n        }\n        self.openUrl(url: url)\n        return true\n    }\n"""
 
-if paired_dispatch not in text:
-    if text.count(dispatch_anchor) != 1:
-        raise SystemExit(f"[jerkgram-push-pairing] expected one dispatch anchor, found {text.count(dispatch_anchor)}")
-    text = text.replace(dispatch_anchor, paired_dispatch, 1)
+annotation_patched = """    func application(_ application: UIApplication, open url: URL, sourceApplication: String?, annotation: Any) -> Bool {\n        if self.handleJerkgramExternalUrl(url) {\n            return true\n        }\n        self.openUrl(url: url)\n        return true\n    }\n"""
+
+modern_anchor = """    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {\n        guard self.openUrlInProgress != url else {\n            return true\n        }\n        \n        self.openUrl(url: url)\n        return true\n    }\n"""
+modern_patched = """    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {\n        if self.handleJerkgramExternalUrl(url) {\n            return true\n        }\n        guard self.openUrlInProgress != url else {\n            return true\n        }\n        \n        self.openUrl(url: url)\n        return true\n    }\n"""
+
+for name, original, patched in (
+    ("legacy sourceApplication", legacy_anchor, legacy_patched),
+    ("annotation", click_annotation_anchor, annotation_patched),
+    ("modern options", modern_anchor, modern_patched),
+):
+    if patched not in text:
+        if text.count(original) != 1:
+            raise SystemExit(
+                f"[jerkgram-push-pairing] expected one {name} URL entrypoint anchor, found {text.count(original)}"
+            )
+        text = text.replace(original, patched, 1)
 
 for invariant in (
     marker,
+    external_marker,
     'url.scheme?.lowercased() == "jerkgram"',
     'url.host?.lowercased() == "push"',
     'url.path == "/authorize"',
@@ -191,22 +224,25 @@ for invariant in (
     "Connection request expired. Try again.",
     "Could not connect to Telegram. Try again.",
     "self.window?.rootViewController?.present(",
-    "if self.handleJerkgramPushPairingUrl(url)",
+    "if self.handleJerkgramExternalUrl(url)",
 ):
     if invariant not in text:
         raise SystemExit(f"[jerkgram-push-pairing] invariant missing after patch: {invariant}")
 
 if text.count(marker) != 1:
     raise SystemExit(f"[jerkgram-push-pairing] pairing handler count is {text.count(marker)}, expected 1")
+if text.count(external_marker) != 1:
+    raise SystemExit(f"[jerkgram-push-pairing] external dispatcher count is {text.count(external_marker)}, expected 1")
+if text.count("if self.handleJerkgramExternalUrl(url)") != 3:
+    raise SystemExit(
+        f"[jerkgram-push-pairing] external URL dispatch count is {text.count('if self.handleJerkgramExternalUrl(url)')}, expected 3"
+    )
 
-# Presentation assertions are deliberately scoped to our helper. Stock Telegram's
-# AppDelegate has its own legitimate rootViewController.present calls.
+# Presentation assertions are deliberately scoped to our pairing helper. Stock
+# Telegram's AppDelegate has its own legitimate rootViewController.present calls.
 helper_start = text.index(marker)
-dispatch_start = text.index(
-    "func application(_ application: UIApplication, open url: URL",
-    helper_start,
-)
-helper_scope = text[helper_start:dispatch_start]
+external_start = text.index(external_marker, helper_start)
+helper_scope = text[helper_start:external_start]
 
 invalid_presentation = "self.mainWindow?.viewController?.present("
 if invalid_presentation in helper_scope:
