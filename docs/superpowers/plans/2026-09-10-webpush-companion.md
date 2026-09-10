@@ -2,111 +2,108 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver full Telegram message notifications on iOS through a Home Screen Web Push companion and open the exact chat/message in native Jerkgram when the notification is tapped.
+**Goal:** Deliver full Telegram text notifications on iOS through a Home Screen Jerkgram Push Companion and open the exact account/chat/message in native Jerkgram when a notification is tapped.
 
-**Architecture:** A Jerkgram PWA creates a Web Push subscription using Telegram Web K's public application-server key. Native Jerkgram receives that subscription through a dedicated `jerkgram://push/register` URL, registers it with Telegram using `account.registerDevice(token_type: 10)` and an empty Telegram-level `secret`, and persists the token for re-registration. Telegram Web Push reaches the PWA service worker directly; the worker renders the server-provided title/description and preserves only account/peer/message identifiers for navigation. Notification taps open a same-origin landing page which hands those identifiers to native Jerkgram through `jerkgram://push/open`, where existing `openChatWhenReady` navigation is reused.
+**Architecture:** The primary path is a narrowly patched self-hosted Telegram Web K companion. Web K keeps its own Telegram web session in browser storage on the iPhone and keeps its known API/VAPID pairing, so Telegram can deliver its normal Web Push payload directly to the service worker. The service worker keeps Web K's existing full notification rendering, but default notification taps are handed to a same-origin landing page and then to a dedicated `jerkgram://push/open` deep link in native Jerkgram. A direct native `token_type=10` registration bridge remains an experimental diagnostic only because the Telegram backend's mapping between API application and VAPID sender key is not public.
 
-**Tech Stack:** Telegram iOS 12.9.2 Swift/SwiftSignalKit/TelegramCore, Telegram MTProto `account.registerDevice`, Service Worker Push API, Web App Manifest, vanilla JavaScript.
+**Tech Stack:** Telegram Web K Service Worker/Push API, Telegram iOS 12.9.2 Swift/SwiftSignalKit, Python source patchers/verifiers, vanilla JavaScript.
 
 **Spec:** This plan.
 
 ## Global Constraints
 
-- Do not alter or remove the existing APNs/VoIP registration path.
-- Do not require a Jerkgram backend and do not store Telegram auth keys/sessions in the web companion.
-- Web Push registration must use token type `10` and raw JSON token text, never `hexString(token)`.
-- Telegram-level `secret` for Web Push is empty; Web Push transport security is provided by the subscription `p256dh`/`auth` keys.
-- Register the same Web Push subscription for all active production accounts, with the other active user IDs supplied through `other_uids`.
-- Ignore testing-environment accounts in v0.1.
-- Set `no_muted` for the PoC so muted chats do not create mandatory user-visible Web Push notifications.
-- Never place message text, sender name, auth data, or the subscription token in the notification-click URL; only IDs required for navigation.
-- Add a dedicated `jerkgram` URL scheme so an installed original Telegram cannot steal notification clicks.
-- PWA must normalize both `{data:{...}}` and direct Telegram Web Push payload shapes.
-- Full notification v0.1 means Telegram-provided sender/chat title and message/description text, correct silent behavior, and exact chat/message navigation. Rich media/avatar previews are out of scope.
-- No full GitHub Actions app build until static patch/verifier tests pass and the branch is reviewed.
+- Do not alter or remove Jerkgram's existing APNs/VoIP registration path.
+- Do not store Telegram auth keys/sessions on a Jerkgram server. The companion session remains in Web K's local browser storage.
+- Keep Web K's own Web Push subscription and `account.registerDevice(token_type: 10)` machinery unchanged in the primary path.
+- Never place message text, sender/chat title, auth data, subscription data, or Web Push keys in a click URL. Only account/peer/message/thread identifiers may cross the PWA -> native handoff.
+- Add a dedicated `jerkgram` URL scheme. Do not use `tg://` or `telegram://` for companion clicks because another installed Telegram client may own them.
+- Full notification v0.1 means Telegram-provided sender/chat title plus text/description, correct silent behavior, and exact account/chat/message navigation. Rich avatar/media thumbnails are out of scope.
+- Preserve Telegram Web K handling for encrypted push payloads, read-history cleanup, deleted-message cleanup, notification actions, and muted/silent behavior.
+- Ignore non-message notification types for deep navigation when they do not contain a resolvable peer; they may fall back to opening Jerkgram normally.
+- No full GitHub Actions app build until patcher/verifier tests pass.
 
 ---
 
-### Task 1: Web Push companion
+### Task 1: Pure notification handoff helper
 
 **Files:**
-- Create: `webpush-companion/index.html`
-- Create: `webpush-companion/app.js`
-- Create: `webpush-companion/sw.js`
+- Create: `webpush-companion/handoff.js`
+- Create: `tests/webpush_handoff_test.mjs`
+
+**Interfaces:**
+- `buildJerkgramHandoffData(push)` -> `{user, kind, peer, msg?, thread?}` or `null`.
+- `buildLandingUrl(scope, data)` -> same-origin HTTPS `open.html` URL containing IDs only.
+- `buildNativeUrl(data)` -> `jerkgram://push/open?...` containing IDs only.
+
+- [ ] Write tests for private user, basic group, channel/supergroup, topic/top message, missing peer, malformed IDs, and leakage of title/body.
+- [ ] Implement only enough parsing to satisfy the tests.
+
+### Task 2: Web K patch
+
+**Files:**
+- Create: `webpush-companion/apply_webk_jerkgram_push_v01.py`
 - Create: `webpush-companion/open.html`
-- Create: `webpush-companion/manifest.webmanifest`
+- Create: `webpush-companion/README.md`
+- Test: `tests/test_webk_jerkgram_push_patch.py`
 
 **Interfaces:**
-- Produces: a raw JSON Web Push subscription containing `endpoint`, `keys.p256dh`, `keys.auth`, and `vapid: true`.
-- Produces: native registration URL `jerkgram://push/register?token=<base64url-json>`.
-- Produces: native navigation URL carrying only `user`, `kind`, `peer`, `msg`, and optional `thread`.
+- Consumes a Telegram Web K checkout containing `src/lib/serviceWorker/push.ts`.
+- Replaces only the default notification-click branch after Web K has already parsed/decrypted the Telegram push.
+- Produces a same-origin landing URL, then a dedicated native Jerkgram deep link.
 
-- [ ] **Step 1:** Add deterministic JavaScript unit-testable helpers for payload normalization, notification presentation, and navigation-data extraction.
-- [ ] **Step 2:** Subscribe with `userVisibleOnly: true` and Telegram Web K application-server key.
-- [ ] **Step 3:** Transfer the subscription to native Jerkgram only from an explicit user tap.
-- [ ] **Step 4:** Handle `push` events, show title/body from Telegram, and fall back safely when fields are absent.
-- [ ] **Step 5:** Handle service events (`MESSAGE_DELETED` and `READ_HISTORY`) by closing matching displayed notifications rather than displaying them.
-- [ ] **Step 6:** Handle `notificationclick` through same-origin `open.html`, then hand off to `jerkgram://push/open`.
+- [ ] Fixture-test the exact Web K click-handler anchor before patching.
+- [ ] Preserve Web K's existing notification rendering and non-default actions.
+- [ ] On default click, extract only `user_id`, `custom.from_id/chat_id/channel_id`, `custom.msg_id`, and `custom.top_msg_id`.
+- [ ] Use `clients.openWindow()` for the same-origin landing page.
+- [ ] Landing page attempts the native deep link and exposes a visible fallback button.
 
-### Task 2: TelegramCore Web Push registration
+### Task 3: Native Jerkgram click bridge
 
 **Files:**
-- Modify via patcher: `submodules/TelegramCore/Sources/TelegramEngine/AccountData/RegisterNotificationToken.swift`
-- Modify via patcher: `submodules/TelegramCore/Sources/TelegramEngine/AccountData/TelegramEngineAccountData.swift`
-- Create: `scripts/apply_jerkgram_webpush_bridge_v01.py`
+- Create: `scripts/apply_jerkgram_push_click_bridge_v01.py`
+- Modify through patcher: `submodules/TelegramUI/Sources/AppDelegate.swift`
+- Modify through patcher: `Telegram/Telegram-iOS/InfoBazel.plist`
+- Modify through patcher: `Telegram/BUILD`
+- Test: `tests/test_jerkgram_push_click_bridge_v01.py`
 
 **Interfaces:**
-- Produces: `registerWebPushNotificationToken(token: String, otherAccountUserIds: [PeerId.Id], excludeMutedChats: Bool) -> Signal<Bool, NoError>`.
-- Produces: `unregisterWebPushNotificationToken(token: String, otherAccountUserIds: [PeerId.Id]) -> Signal<Never, NoError>`.
+- Consumes `jerkgram://push/open?user=<telegram-user-id>&kind=<user|chat|channel>&peer=<id>&msg=<id>&thread=<id>`.
+- Uses existing `openChatWhenReady(accountId:peerId:threadId:messageId:storyId:alwaysKeepMessageId:)`.
 
-- [ ] **Step 1:** Add failing patch fixture tests proving raw JSON is not hex-encoded and token type is exactly 10.
-- [ ] **Step 2:** Add dedicated internal register/unregister functions without modifying `.aps`/`.voip` behavior.
-- [ ] **Step 3:** Expose narrow engine wrappers in `TelegramEngineAccountData.swift`.
-- [ ] **Step 4:** Return `false` and log the RPC description for Web Push registration errors so `WEBPUSH_*` failures are observable.
+- [ ] Add the `jerkgram` URL scheme without replacing existing Telegram schemes.
+- [ ] Intercept only `scheme=jerkgram`, `host=push`, `path=/open` before normal Telegram URL handling.
+- [ ] Validate query length and numeric values; reject malformed links without crashing.
+- [ ] Resolve `user` against `activeAccountContexts` to choose the correct logged-in account.
+- [ ] Map `kind=user` -> CloudUser, `chat` -> CloudGroup, `channel` -> CloudChannel.
+- [ ] Build optional Cloud `MessageId` and call `openChatWhenReady(... alwaysKeepMessageId: true)`.
 
-### Task 3: Native bridge and exact chat navigation
+### Task 4: Static verifier
 
 **Files:**
-- Modify via patcher: `submodules/TelegramUI/Sources/AppDelegate.swift`
-- Modify via patcher: `Telegram/Telegram-iOS/InfoBazel.plist`
-- Modify via patcher: `Telegram/BUILD`
+- Create: `scripts/verify_jerkgram_push_click_bridge_v01.py`
 
-**Interfaces:**
-- Consumes: `jerkgram://push/register?token=...` and `jerkgram://push/open?...`.
-- Persists: the Web Push token in `UserDefaults` under a Jerkgram-specific key.
-- Uses: existing `openChatWhenReady(accountId:peerId:threadId:messageId:...)`.
+- [ ] Verify `jerkgram` scheme ownership in both plist/build-template owners.
+- [ ] Verify the deep-link parser exists once and calls `openChatWhenReady`.
+- [ ] Verify existing `telegram`, `tg`, APS token type 1, and VoIP token type 9 markers remain unchanged.
+- [ ] Run Python/Node static tests. Do not trigger a full app build.
 
-- [ ] **Step 1:** Register a dedicated `jerkgram` URL scheme without replacing Telegram's existing schemes.
-- [ ] **Step 2:** Validate and decode only base64url-encoded subscription JSON with HTTPS endpoint and non-empty `p256dh`/`auth`.
-- [ ] **Step 3:** Register the token on all active production accounts and save it only after validation.
-- [ ] **Step 4:** Re-register a saved token after launch once active accounts exist.
-- [ ] **Step 5:** Parse notification navigation IDs, select the target account by Telegram `user_id`, construct the correct CloudUser/CloudGroup/CloudChannel `PeerId`, and invoke `openChatWhenReady` with the `MessageId` and optional thread ID.
-- [ ] **Step 6:** Reject malformed/oversized deep links without crashing or passing them to Telegram's normal URL parser.
-
-### Task 4: Verifier and static regression tests
+### Task 5: Optional direct type-10 diagnostic
 
 **Files:**
-- Create: `scripts/verify_jerkgram_webpush_bridge_v01.py`
-- Create: `tests/test_jerkgram_webpush_bridge_v01.py`
-- Create: `tests/webpush_companion_test.mjs`
+- Separate patcher/tests only if the primary Web K companion works or a runtime experiment is explicitly useful.
 
-**Interfaces:**
-- Verifies the materialized Telegram source and standalone web helper behavior.
+- [ ] Never integrate this path into normal builds by default.
+- [ ] If tested, register raw Web Push JSON as token type 10 and record the exact RPC result.
+- [ ] Treat successful registration without delivery as evidence of an API/VAPID sender-key mismatch, not as success.
 
-- [ ] **Step 1:** Assert token type 10 exists only in the Jerkgram Web Push path and the raw token is passed unchanged.
-- [ ] **Step 2:** Assert existing APNs type 1 and VoIP type 9 mappings remain present.
-- [ ] **Step 3:** Assert the dedicated `jerkgram` URL scheme is present exactly once in each generated plist/build template owner.
-- [ ] **Step 4:** Test payload normalization for direct and `{data:...}` payloads, private chats, basic groups, channels/supergroups, silent messages, and missing text.
-- [ ] **Step 5:** Test that navigation URLs never contain title/body/message content.
-- [ ] **Step 6:** Run Python and Node static tests; do not trigger a full app build yet.
-
-### Task 5: Runtime acceptance
+### Task 6: Runtime acceptance
 
 **Files:** none.
 
-- [ ] **Step 1:** Deploy `webpush-companion/` under HTTPS and add it to the iPhone Home Screen.
-- [ ] **Step 2:** Tap Connect Jerkgram and confirm native registration reports success rather than a `WEBPUSH_*` RPC error.
-- [ ] **Step 3:** Fully close the PWA and background/close Jerkgram, then send a private text message from another account; require sender/title + message text on Lock Screen/Notification Center.
-- [ ] **Step 4:** Repeat for a basic group and a supergroup/channel.
-- [ ] **Step 5:** Tap each notification and require native Jerkgram to open the correct account, chat, and message.
-- [ ] **Step 6:** Only after runtime acceptance, decide whether to integrate the patcher into the normal build chain.
+- [ ] Host the patched Web K companion under HTTPS and log into Telegram once in the companion.
+- [ ] Add it to the iPhone Home Screen and enable notifications.
+- [ ] Close the web companion and background/close native Jerkgram.
+- [ ] Send a private text message and require full sender/title + message text in the notification.
+- [ ] Repeat for a basic group and a supergroup/channel.
+- [ ] Tap each notification and require native Jerkgram to open the correct account, peer, and exact message.
+- [ ] Only after runtime acceptance integrate the native click bridge into the normal Jerkgram patch chain.
