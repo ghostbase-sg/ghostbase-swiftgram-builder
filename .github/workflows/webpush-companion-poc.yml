@@ -9,8 +9,11 @@ on:
       - "webpush-companion/**"
       - "tests/webpush_handoff_test.mjs"
       - "tests/test_webk_jerkgram_push_patch.py"
+      - "tests/test_webk_jerkgram_pairing_v01.py"
       - "tests/test_jerkgram_push_click_bridge_v01.py"
+      - "tests/test_jerkgram_push_pairing_bridge_v01.py"
       - "scripts/apply_jerkgram_push_click_bridge_v01.py"
+      - "scripts/apply_jerkgram_push_pairing_bridge_v01.py"
       - "scripts/verify_jerkgram_push_click_bridge_v01.py"
       - ".github/workflows/webpush-companion-poc.yml"
 
@@ -41,7 +44,12 @@ jobs:
         run: node tests/webpush_handoff_test.mjs
 
       - name: Test bounded patchers
-        run: pytest -q tests/test_webk_jerkgram_push_patch.py tests/test_jerkgram_push_click_bridge_v01.py
+        run: >-
+          pytest -q
+          tests/test_webk_jerkgram_push_patch.py
+          tests/test_webk_jerkgram_pairing_v01.py
+          tests/test_jerkgram_push_click_bridge_v01.py
+          tests/test_jerkgram_push_pairing_bridge_v01.py
 
   webk-compile:
     runs-on: ubuntu-latest
@@ -67,8 +75,11 @@ jobs:
           git checkout e9428f2a90f73d750f16a0b85817820516466364
           git submodule update --init --recursive
 
-      - name: Apply Jerkgram companion patch
+      - name: Apply Jerkgram companion push patch
         run: python webpush-companion/apply_webk_jerkgram_push_v01.py "$GITHUB_WORKSPACE/tweb"
+
+      - name: Apply Jerkgram companion one-tap pairing patch
+        run: python webpush-companion/apply_webk_jerkgram_pairing_v01.py "$GITHUB_WORKSPACE/tweb"
 
       - name: Install Web K dependencies
         working-directory: tweb
@@ -99,6 +110,8 @@ jobs:
           test -f tweb/dist/open.html
           test -f tweb/dist/handoff.js
           grep -q "jerkgram://push/open" tweb/dist/handoff.js
+          grep -R -q "Connect with Jerkgram" tweb/dist/*.js
+          grep -R -q "jerkgram://push/authorize" tweb/dist/*.js
 
       - name: Upload deployable companion
         uses: actions/upload-artifact@v4
