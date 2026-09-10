@@ -12,7 +12,7 @@ MARKER = "// MARK: Jerkgram v1.2X BUILD133_RELEASE_UI1"
 IDENTITY_MARKER = "// MARK: Jerkgram v1.2X BUILD133_RELEASE_IDENTITY1"
 DISPLAY_VERSION = "1.0.2"
 TECHNICAL_VERSION = "1.0.2"
-BUILD = "138"
+BUILD = "139"
 TELEGRAM_BASE = "12.9.2"
 
 
@@ -110,11 +110,6 @@ def patch_settings_text(text: str) -> str:
     else:
         require(text.count(MARKER) == 1, "Settings release marker is ambiguous")
 
-    # Keep Telegram's glass system style on every interactive row. Its native
-    # mask uses a 26 pt radius; stripping it falls back to the nearly-square
-    # 11 pt legacy mask seen in Build134. Status/footer text remains plain via
-    # JerkgramSettingsStatusItem above and is not turned into a bubble.
-
     owner = block_text(text, signature)
     require("ItemListTextItem(" in owner and "text: .plain(text)" in owner, "native plain status owner not materialized")
     require("ItemListDisclosureItem(" not in owner, "legacy disclosure status owner survived")
@@ -160,13 +155,9 @@ def patch_strings_text(text: str) -> str:
     require("BUILD124_SETTINGS_REDESIGN_STRINGS1" in text, "Build124 Settings strings prerequisite missing")
     about = block_text(text, about_signature)
     require("Build 124 Canary" in about, "stale About summary anchor changed unexpectedly")
-    text = replace_block(
-        text,
-        about_signature,
-        '''var build124AboutSummary: String {
+    text = replace_block(text, about_signature, '''var build124AboutSummary: String {
         return JerkgramReleaseIdentity.aboutText
-    }''',
-    )
+    }''')
     text = text.rstrip() + "\n\n" + IDENTITY_SOURCE.strip() + "\n"
 
     about = block_text(text, about_signature)
@@ -184,11 +175,10 @@ def patch_strings_text(text: str) -> str:
 def main() -> None:
     require(SETTINGS.is_file(), "Settings owner missing: " + str(SETTINGS))
     require(STRINGS.is_file(), "JerkgramStrings owner missing: " + str(STRINGS))
-
     SETTINGS.write_text(patch_settings_text(SETTINGS.read_text(encoding="utf-8")), encoding="utf-8")
     STRINGS.write_text(patch_strings_text(STRINGS.read_text(encoding="utf-8")), encoding="utf-8")
     print("[Build133 release UI] SOURCE PATCHED")
-    print("[Build138 release UI] Jerkgram 1.0.2 / Build 138 / Telegram Base 12.9.2; 26pt glass interactive rows + plain status text")
+    print("[Build139 release UI] Jerkgram 1.0.2 / Build 139 / Telegram Base 12.9.2; 26pt glass interactive rows + plain status text")
 
 
 if __name__ == "__main__":
