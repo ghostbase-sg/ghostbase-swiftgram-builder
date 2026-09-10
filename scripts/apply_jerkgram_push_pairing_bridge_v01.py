@@ -11,6 +11,8 @@ if not APP_DELEGATE.exists():
 text = APP_DELEGATE.read_text()
 marker = "private func handleJerkgramPushPairingUrl(_ url: URL) -> Bool"
 
+# This script is intentionally layered after apply_jerkgram_push_click_bridge_v01.py.
+# That bridge owns the dedicated jerkgram:// scheme and the final open-url dispatch.
 dispatch_anchor = """    func application(_ application: UIApplication, open url: URL, sourceApplication: String?, annotation: Any) -> Bool {\n        if self.handleJerkgramPushUrl(url) {\n            return true\n        }\n        self.openUrl(url: url)\n        return true\n    }\n"""
 
 helper = r'''    // MARK: Jerkgram Push Companion one-tap authorization bridge
@@ -21,6 +23,8 @@ helper = r'''    // MARK: Jerkgram Push Companion one-tap authorization bridge
             return false
         }
 
+        // Consume every malformed authorize request locally. Never pass a pairing
+        // token into Telegram's generic URL router or log it as a normal URL.
         guard url.absoluteString.utf8.count <= 2048,
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return true
@@ -74,10 +78,13 @@ helper = r'''    // MARK: Jerkgram Push Companion one-tap authorization bridge
                         preferredStyle: .alert
                     )
                     failed.addAction(UIAlertAction(title: "OK", style: .default))
-                    self.mainWindow?.viewController?.present(failed, animated: true)
+                    self.window?.rootViewController?.present(failed, animated: true)
                     return
                 }
 
+                // Variant A for Alpha: use Telegram's current primary account. Read
+                // its peer only to make the confirmation explicit; no account state
+                // or session material is copied into the pairing URL or PWA.
                 let _ = (primary.account.postbox.transaction { transaction -> TelegramUser? in
                     return transaction.getPeer(primary.account.peerId) as? TelegramUser
                 }
@@ -130,7 +137,7 @@ helper = r'''    // MARK: Jerkgram Push Companion one-tap authorization bridge
                                 preferredStyle: .alert
                             )
                             done.addAction(UIAlertAction(title: "OK", style: .default))
-                            self.mainWindow?.viewController?.present(done, animated: true)
+                            self.window?.rootViewController?.present(done, animated: true)
                         }, error: { [weak self] error in
                             guard let self = self else {
                                 return
@@ -148,10 +155,10 @@ helper = r'''    // MARK: Jerkgram Push Companion one-tap authorization bridge
                                 preferredStyle: .alert
                             )
                             failed.addAction(UIAlertAction(title: "OK", style: .default))
-                            self.mainWindow?.viewController?.present(failed, animated: true)
+                            self.window?.rootViewController?.present(failed, animated: true)
                         })
                     }))
-                    self.mainWindow?.viewController?.present(alert, animated: true)
+                    self.window?.rootViewController?.present(alert, animated: true)
                 })
             })
         })
@@ -183,6 +190,7 @@ for invariant in (
     "approveAuthTransferToken(",
     "Connection request expired. Try again.",
     "Could not connect to Telegram. Try again.",
+    "self.window?.rootViewController?.present(",
     "if self.handleJerkgramPushPairingUrl(url)",
 ):
     if invariant not in text:
@@ -190,6 +198,16 @@ for invariant in (
 
 if text.count(marker) != 1:
     raise SystemExit(f"[jerkgram-push-pairing] pairing handler count is {text.count(marker)}, expected 1")
+
+invalid_presentation = "self.mainWindow?.viewController?.present("
+if invalid_presentation in text:
+    raise SystemExit("[jerkgram-push-pairing] invalid ContainableController alert presentation survived")
+
+presentation = "self.window?.rootViewController?.present("
+if text.count(presentation) != 4:
+    raise SystemExit(
+        f"[jerkgram-push-pairing] UIKit alert presentation count is {text.count(presentation)}, expected 4"
+    )
 
 APP_DELEGATE.write_text(text)
 print("[jerkgram-push-pairing] OK")
