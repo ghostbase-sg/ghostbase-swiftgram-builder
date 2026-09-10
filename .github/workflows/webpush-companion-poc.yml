@@ -85,6 +85,14 @@ jobs:
         working-directory: tweb
         run: pnpm exec vite build
 
+      # Telegram Web K deliberately sets copyPublicDir:false. Copy only the two
+      # Jerkgram-owned handoff files; do not enable global public-dir copying.
+      - name: Package Jerkgram companion handoff assets
+        run: |
+          set -euxo pipefail
+          install -m 0644 tweb/public/open.html tweb/dist/open.html
+          install -m 0644 tweb/public/handoff.js tweb/dist/handoff.js
+
       - name: Verify companion artifacts
         run: |
           set -euxo pipefail
