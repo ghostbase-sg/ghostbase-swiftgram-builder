@@ -199,14 +199,23 @@ for invariant in (
 if text.count(marker) != 1:
     raise SystemExit(f"[jerkgram-push-pairing] pairing handler count is {text.count(marker)}, expected 1")
 
+# Presentation assertions are deliberately scoped to our helper. Stock Telegram's
+# AppDelegate has its own legitimate rootViewController.present calls.
+helper_start = text.index(marker)
+dispatch_start = text.index(
+    "func application(_ application: UIApplication, open url: URL",
+    helper_start,
+)
+helper_scope = text[helper_start:dispatch_start]
+
 invalid_presentation = "self.mainWindow?.viewController?.present("
-if invalid_presentation in text:
+if invalid_presentation in helper_scope:
     raise SystemExit("[jerkgram-push-pairing] invalid ContainableController alert presentation survived")
 
 presentation = "self.window?.rootViewController?.present("
-if text.count(presentation) != 4:
+if helper_scope.count(presentation) != 4:
     raise SystemExit(
-        f"[jerkgram-push-pairing] UIKit alert presentation count is {text.count(presentation)}, expected 4"
+        f"[jerkgram-push-pairing] helper UIKit alert presentation count is {helper_scope.count(presentation)}, expected 4"
     )
 
 APP_DELEGATE.write_text(text)
