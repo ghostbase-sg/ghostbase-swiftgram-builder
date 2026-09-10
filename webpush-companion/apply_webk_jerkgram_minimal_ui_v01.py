@@ -5,14 +5,17 @@ import sys
 ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
 MOUNT_AUTH = ROOT / "src/pages/mountAuthFlow.tsx"
 SIGN_QR = ROOT / "src/pages/cards/SignQRCard.tsx"
+BOOTSTRAP_IM = ROOT / "src/pages/bootstrapIm.ts"
 APP_IM = ROOT / "src/lib/appImManager.ts"
 SHELL = ROOT / "src/lib/jerkgramCompanionShell.ts"
+PUSH = ROOT / "src/lib/jerkgramCompanionPush.ts"
 
-for path in (MOUNT_AUTH, SIGN_QR, APP_IM):
+for path in (MOUNT_AUTH, SIGN_QR, BOOTSTRAP_IM, APP_IM):
     if not path.exists():
         raise SystemExit(f"[jerkgram-minimal-ui] missing {path}")
 
-# A fresh companion should never start at Web K's phone-number UI.
+# Fresh companion installations enter the official login-token flow directly,
+# never Web K's phone-number screen.
 auth = MOUNT_AUTH.read_text()
 old_auth = "case 'authStateSignIn':\n      return {name: 'signIn'};"
 new_auth = "case 'authStateSignIn':\n      return {name: 'signQR'};"
@@ -22,9 +25,9 @@ if new_auth not in auth:
     auth = auth.replace(old_auth, new_auth, 1)
 MOUNT_AUTH.write_text(auth)
 
-# The one-tap pairing patch must run first. Replace the QR/phone-oriented card
-# with a single-purpose Jerkgram pairing card, while retaining Telegram's
-# official login-token protocol and the normal post-auth bootstrap.
+# The earlier one-tap pairing patch must have run. Replace the whole QR-oriented
+# card with a single action while preserving Telegram's export/import login-token
+# protocol and the official 2FA fallback.
 qr_before = SIGN_QR.read_text()
 for marker in ("auth.exportLoginToken", "jerkgram://push/authorize", "toIm()"):
     if marker not in qr_before:
@@ -60,8 +63,7 @@ export default function SignQRCard(_props: {spec: Spec}) {
     if(!lastLoginToken) return;
     const encoded = bytesToBase64(lastLoginToken);
     const token = fixBase64String(encoded, true);
-    // The short-lived Telegram login token is handed directly to the installed
-    // native Jerkgram. It is never placed in this page URL or sent to Jerkgram infrastructure.
+    // Short-lived Telegram login token only. Native auth keys never leave Jerkgram.
     window.location.assign('jerkgram://push/authorize?token=' + encodeURIComponent(token));
   }
 
@@ -103,15 +105,22 @@ export default function SignQRCard(_props: {spec: Spec}) {
 
       const timestamp = Date.now() / 1000;
       const diff = loginToken.expires - timestamp - await managers.timeManager.getServerTimeOffset();
-      await pause(diff > FETCH_INTERVAL ? 1e3 * FETCH_INTERVAL : 1e3 * diff | 0);
+      await pause(diff > FETCH_INTERVAL ? 1e3 * FETCH_INTERVAL : Math.max(250, 1e3 * diff | 0));
       return false;
     } catch(err) {
-      if((err as ApiError).type === 'SESSION_PASSWORD_NEEDED') {
-        // Keep Telegram's own fallback if the account requires password confirmation.
-        navigate({name: 'password'});
-      } else if((err as ApiError).type !== 'AUTH_TOKEN_EXPIRED') {
-        console.error('Jerkgram companion pairing error:', err);
-        stopped = true;
+      switch((err as ApiError).type) {
+        case 'SESSION_PASSWORD_NEEDED':
+          // Never weaken Telegram 2FA. Use its normal password confirmation card.
+          navigate({name: 'password'});
+          stopped = true;
+          break;
+        case 'AUTH_TOKEN_EXPIRED':
+          // The normal loop obtains a fresh export token on the next iteration.
+          break;
+        default:
+          console.error('Jerkgram companion pairing error:', err);
+          stopped = true;
+          break;
       }
       return false;
     }
@@ -134,21 +143,55 @@ export default function SignQRCard(_props: {spec: Spec}) {
       <div style={{'text-align': 'center', padding: '12px 8px 20px'}}>
         <h1 style={{margin: '0 0 10px', 'font-size': '28px'}}>Jerkgram Notifications</h1>
         <p class="secondary" style={{margin: 0}}>
-          Connect this notification companion to the Telegram account already signed in to Jerkgram.
+          Connect notifications to the Telegram account already signed in to Jerkgram.
         </p>
       </div>
       <Button primaryFilled large disabled={!ready()} onClick={connectWithJerkgram}>
         Connect with Jerkgram
       </Button>
       <p class="secondary" style={{'text-align': 'center', 'font-size': '13px', margin: '16px 8px 0'}}>
-        No phone number or SMS code is requested here.
+        No phone number, SMS code or QR scan is requested here.
       </p>
     </AuthCard>
   );
 }
 ''')
 
-SHELL.write_text(r'''import uiNotificationsManager from '@lib/uiNotificationsManager';
+# A small runtime owns only Web Push subscription/registration. It deliberately
+# bypasses UiNotificationsManager and appDialogsManager so opening the companion
+# does not bootstrap chats, media, calls, sidebars or the normal Web K IM.
+PUSH.write_text(r'''import {SETTINGS_INIT} from '@config/state';
+import apiManagerProxy from '@lib/apiManagerProxy';
+import webPushApiManager from '@lib/webPushApiManager';
+
+let started = false;
+
+export function startJerkgramCompanionPushRuntime(): void {
+  if(started) return;
+  started = true;
+
+  webPushApiManager.setSettings({
+    ...SETTINGS_INIT.notifications,
+    baseUrl: new URL('./', location.href).toString()
+  });
+  webPushApiManager.start();
+}
+
+export async function ensureJerkgramPushRegistered(): Promise<boolean> {
+  if(!webPushApiManager.isAvailable || Notification.permission !== 'granted') {
+    return false;
+  }
+
+  let tokenData = await webPushApiManager.getSubscription();
+  tokenData ||= await webPushApiManager.subscribe();
+  if(!tokenData) return false;
+
+  await apiManagerProxy.pushSingleManager.registerDevice(tokenData);
+  return true;
+}
+''')
+
+SHELL.write_text(r'''import {ensureJerkgramPushRegistered} from '@lib/jerkgramCompanionPush';
 
 let mounted = false;
 
@@ -183,7 +226,7 @@ export default function mountJerkgramCompanionShell(): void {
   const card = make('section');
   card.id = 'jerkgram-notifications-card';
   const title = make('h1', 'Jerkgram Notifications');
-  const intro = make('p', 'This companion only keeps Telegram Web Push available for Jerkgram. You can close it after setup.');
+  const intro = make('p', 'Notification companion for Jerkgram. After setup, this app can stay closed.');
   const status = make('p');
   status.id = 'jerkgram-notifications-status';
   const enable = make('button');
@@ -216,22 +259,36 @@ export default function mountJerkgramCompanionShell(): void {
     }
 
     if(Notification.permission === 'granted') {
-      status.textContent = 'Notifications are active. Jerkgram Notifications can now stay closed.';
-      enable.textContent = 'Notifications Enabled';
       enable.disabled = true;
-      await uiNotificationsManager.onPushConditionsChange();
+      enable.textContent = 'Checking…';
+      try {
+        const registered = await ensureJerkgramPushRegistered();
+        if(registered) {
+          status.textContent = 'Notifications are active. Jerkgram Notifications can now stay closed.';
+          enable.textContent = 'Notifications Enabled';
+        } else {
+          status.textContent = 'Could not register Web Push on this device.';
+          enable.textContent = 'Retry';
+          enable.disabled = false;
+        }
+      } catch(error) {
+        console.error('Jerkgram push registration failed:', error);
+        status.textContent = 'Push registration failed. Try again.';
+        enable.textContent = 'Retry';
+        enable.disabled = false;
+      }
       return;
     }
 
     status.textContent = 'Connected. One last step: allow notifications on this device.';
+    enable.textContent = 'Enable Notifications';
     enable.disabled = false;
   };
 
   enable.addEventListener('click', async() => {
     enable.disabled = true;
-    const permission = await Notification.requestPermission();
-    if(permission === 'granted') {
-      await uiNotificationsManager.onPushConditionsChange();
+    if(Notification.permission === 'default') {
+      await Notification.requestPermission();
     }
     await renderState();
   });
@@ -240,23 +297,40 @@ export default function mountJerkgramCompanionShell(): void {
 }
 ''')
 
+# The post-auth entry point is deliberately notification-only. No dynamic import
+# of appDialogsManager means its large chat/IM dependency graph is not requested
+# by this companion bootstrap.
+BOOTSTRAP_IM.write_text(r'''import rootScope from '@lib/rootScope';
+import mountJerkgramCompanionShell from '@lib/jerkgramCompanionShell';
+import {startJerkgramCompanionPushRuntime} from '@lib/jerkgramCompanionPush';
+
+import {disposeActiveAuthFlow} from '@/pages/mountAuthFlow';
+
+let bootstrapped = false;
+
+export async function bootstrapIm(): Promise<void> {
+  if(bootstrapped) return;
+  bootstrapped = true;
+
+  await rootScope.managers.appStateManager.pushToState('authState', {_: 'authStateSignedIn'});
+  startJerkgramCompanionPushRuntime();
+  mountJerkgramCompanionShell();
+  disposeActiveAuthFlow();
+  document.body.classList.remove('has-auth-pages');
+}
+
+export default bootstrapIm;
+''')
+
+# Remove the previous overlay injection if an earlier PoC patch was materialized.
 im = APP_IM.read_text()
-import_anchor = "import uiNotificationsManager from '@lib/uiNotificationsManager';"
-import_line = "import mountJerkgramCompanionShell from '@lib/jerkgramCompanionShell';"
-if import_line not in im:
-    if import_anchor not in im:
-        raise SystemExit("[jerkgram-minimal-ui] appImManager import anchor not found")
-    im = im.replace(import_anchor, import_anchor + "\n" + import_line, 1)
-call_anchor = "    uiNotificationsManager.constructAndStartAll();"
-call_line = "    mountJerkgramCompanionShell();"
-if call_line not in im:
-    if call_anchor not in im:
-        raise SystemExit("[jerkgram-minimal-ui] notifications construct anchor not found")
-    im = im.replace(call_anchor, call_anchor + "\n\n" + call_line, 1)
+im = im.replace("import mountJerkgramCompanionShell from '@lib/jerkgramCompanionShell';\n", "")
+im = im.replace("\n    mountJerkgramCompanionShell();\n", "\n")
 APP_IM.write_text(im)
 
 print("[jerkgram-minimal-ui] OK")
 print("  patched:", MOUNT_AUTH)
 print("  replaced:", SIGN_QR)
+print("  replaced:", BOOTSTRAP_IM)
+print("  created:", PUSH)
 print("  created:", SHELL)
-print("  patched:", APP_IM)
