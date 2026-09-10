@@ -5,9 +5,10 @@ import sys
 
 ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
 VITE = ROOT / "vite.config.ts"
+INDEX = ROOT / "index.html"
 MANIFESTS = [ROOT / "public/site.webmanifest", ROOT / "public/site_apple.webmanifest"]
 
-if not VITE.exists() or any(not path.exists() for path in MANIFESTS):
+if not VITE.exists() or not INDEX.exists() or any(not path.exists() for path in MANIFESTS):
     raise SystemExit("[jerkgram-webk-branding] required Web K files not found")
 
 vite = VITE.read_text()
@@ -18,6 +19,17 @@ vite = vite.replace(
     1,
 )
 VITE.write_text(vite)
+
+html = INDEX.read_text()
+html = html.replace("<title>Telegram Web</title>", "<title>Jerkgram Notifications</title>")
+html = html.replace(
+    'content="Telegram is a cloud-based mobile and desktop messaging app with a focus on security and speed."',
+    'content="Notification companion for Jerkgram."',
+)
+html = html.replace('content="Telegram Web"', 'content="Jerkgram Notifications"')
+html = html.replace('href="https://web.telegram.org/"', 'href="./"')
+html = html.replace('content="https://web.telegram.org/k/"', 'content="./"')
+INDEX.write_text(html)
 
 for path in MANIFESTS:
     data = json.loads(path.read_text())
