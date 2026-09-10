@@ -19,6 +19,7 @@ on:
       - "scripts/apply_jerkgram_push_click_bridge_v01.py"
       - "scripts/apply_jerkgram_push_pairing_bridge_v01.py"
       - "scripts/verify_jerkgram_push_click_bridge_v01.py"
+      - "scripts/verify_jerkgram_push_pairing_bridge_v01.py"
       - ".github/workflows/webpush-companion-poc.yml"
 
 permissions:
@@ -133,6 +134,8 @@ jobs:
           grep -q '<title>Jerkgram Notifications</title>' tweb/dist/index.html
           grep -R -q "Connect with Jerkgram" tweb/dist/*.js
           grep -R -q "jerkgram://push/authorize" tweb/dist/*.js
+          grep -R -q "Connected as" tweb/dist/*.js
+          grep -R -q "Disconnect" tweb/dist/*.js
           grep -R -q "Enable Notifications" tweb/dist/*.js
           grep -R -q "Add Jerkgram Notifications to the Home Screen" tweb/dist/*.js
 
