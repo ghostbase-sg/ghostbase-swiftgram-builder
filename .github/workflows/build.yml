@@ -153,6 +153,10 @@ jobs:
             scripts/verify_jerkgram_build137_performance2.py \
             scripts/apply_jerkgram_v12w_build133_music_overlay1.py \
             scripts/verify_jerkgram_v12w_build133_music_overlay1.py \
+            scripts/apply_jerkgram_push_click_bridge_v01.py \
+            scripts/verify_jerkgram_push_click_bridge_v01.py \
+            scripts/apply_jerkgram_push_pairing_bridge_v01.py \
+            scripts/verify_jerkgram_push_pairing_bridge_v01.py \
             scripts/install_jerkgram_v12w_build133_probe_hook.py \
             scripts/jerkgram_finalize_build133_identity.py \
             scripts/verify_jerkgram_v12w_build133_final_ipa.py \
@@ -230,6 +234,7 @@ jobs:
           python3 -m unittest tests.test_jerkgram_v12zd_build137_performance1
           python3 -m unittest tests.test_jerkgram_build137_performance2
           python3 -m unittest tests.test_jerkgram_build134_release_contract
+          python3 -m unittest tests.test_jerkgram_push_pairing_wiring_v01
 
           # Canonical materialization chain. The legacy-named root installer delegates
           # to Build130/Build125, then appends v12t/v12u/v12v/v12w before Bazel.
