@@ -117,6 +117,8 @@ jobs:
           grep -q "jerkgram://push/open" tweb/dist/handoff.js
           grep -q '"name": "Jerkgram Notifications"' tweb/dist/site.webmanifest
           ! grep -q '"origin": "https://t.me"' tweb/dist/site.webmanifest
+          grep -q '<title>Jerkgram Notifications</title>' tweb/dist/index.html
+          ! grep -q 'web.telegram.org' tweb/dist/index.html
           grep -R -q "Connect with Jerkgram" tweb/dist/*.js
           grep -R -q "jerkgram://push/authorize" tweb/dist/*.js
 
@@ -126,3 +128,44 @@ jobs:
           name: jerkgram-webpush-companion
           path: tweb/dist
           if-no-files-found: error
+
+  publish-gh-pages:
+    needs:
+      - static-tests
+      - webk-compile
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Jerkgram builder
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download verified companion artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: jerkgram-webpush-companion
+          path: ${{ runner.temp }}/jerkgram-notifications
+
+      - name: Verify publish input
+        run: |
+          set -euxo pipefail
+          test -f "$RUNNER_TEMP/jerkgram-notifications/index.html"
+          test -f "$RUNNER_TEMP/jerkgram-notifications/site_apple.webmanifest"
+          test -f "$RUNNER_TEMP/jerkgram-notifications/open.html"
+          grep -q '<title>Jerkgram Notifications</title>' "$RUNNER_TEMP/jerkgram-notifications/index.html"
+          grep -q 'jerkgram://push/open' "$RUNNER_TEMP/jerkgram-notifications/handoff.js"
+
+      - name: Publish verified static PWA to gh-pages branch
+        run: |
+          set -euxo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan gh-pages
+          git rm -rf .
+          cp -a "$RUNNER_TEMP/jerkgram-notifications/." .
+          touch .nojekyll
+          git add -A
+          git commit -m "deploy: Jerkgram Notifications ${GITHUB_SHA}"
+          git push --force origin HEAD:gh-pages
