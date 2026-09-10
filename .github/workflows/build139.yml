@@ -1,0 +1,147 @@
+name: Jerkgram 12.9.2 Build139
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev/build133-runtime-repair
+
+concurrency:
+  group: jerkgram-build139-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-probe:
+    runs-on: macos-26
+
+    env:
+      USE_BAZEL_VERSION: 8.4.2
+      BAZEL_BIN: bazelisk
+      CERT_B64: ${{ secrets.CERT_B64 }}
+      PROF_B64: ${{ secrets.PROF_B64 }}
+      P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      JERKGRAM_TELEGRAM_API_ID: ${{ secrets.JERKGRAM_TELEGRAM_API_ID }}
+      JERKGRAM_TELEGRAM_API_HASH: ${{ secrets.JERKGRAM_TELEGRAM_API_HASH }}
+
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v4
+
+      - name: Install Bazelisk
+        run: |
+          set -e
+          if ! command -v bazelisk >/dev/null 2>&1; then
+            brew install bazelisk
+          fi
+          bazelisk --version || true
+
+      - name: Prepare clean Official Telegram source
+        run: |
+          set -e
+          chmod +x scripts/prepare_source_official.sh
+          scripts/prepare_source_official.sh
+
+      - name: Apply legacy compatibility baseline
+        run: |
+          set -e
+          python3 scripts/apply_ghostbase_v10q_sh2_ot2_combined.py
+
+      - name: Build Jerkgram 139
+        run: |
+          set -e
+
+          # Build139 only changes Jerkgram's internal Settings/telemetry build
+          # identity. The physical Telegram CFBundleVersion remains 138.
+          python3 -m py_compile \
+            scripts/apply_jerkgram_push_click_bridge_v01.py \
+            scripts/verify_jerkgram_push_click_bridge_v01.py \
+            scripts/apply_jerkgram_push_pairing_bridge_v01.py \
+            scripts/verify_jerkgram_push_pairing_bridge_v01.py \
+            scripts/apply_jerkgram_v12x_build133_release_ui1.py \
+            scripts/verify_jerkgram_v12x_build133_release_ui1.py \
+            scripts/apply_jerkgram_v12y_build133_telemetry2.py \
+            scripts/verify_jerkgram_v12y_build133_telemetry2.py \
+            scripts/install_jerkgram_v12w_build133_probe_hook.py \
+            scripts/verify_jerkgram_v12w_build133_final_ipa.py \
+            scripts/jerkgram_publish_build138_artifact.py
+
+          python3 -m unittest tests.test_jerkgram_v12x_build133_release_ui1
+          python3 -m unittest tests.test_jerkgram_v12y_build133_telemetry2
+
+          # Preserve the exact materialization path used by the successful
+          # Build138 line, then let the Build133 hook append the bounded push
+          # click/pairing bridges immediately before the final source gate.
+          python3 scripts/install_jerkgram_v12d_build115_probe_hook.py
+          python3 scripts/install_jerkgram_v12e_build116_probe_hook.py
+          python3 scripts/install_jerkgram_v12f_build117_probe_hook.py
+          python3 scripts/install_jerkgram_v12g_build118_probe_hook.py
+          python3 scripts/install_jerkgram_v12h_build119_probe_hook.py
+          python3 scripts/install_jerkgram_v12i_build120_probe_hook.py
+          python3 scripts/install_jerkgram_v12j_build121_probe_hook.py
+          python3 scripts/install_jerkgram_v12k_build122_probe_hook.py
+          python3 scripts/install_jerkgram_v12w_build133_probe_hook.py
+          python3 scripts/verify_jerkgram_v12m_build124_wiring1.py
+          python3 scripts/verify_jerkgram_v12n_build125_wiring1.py
+
+          chmod +x scripts/bazel_build_probe_official.sh
+          scripts/bazel_build_probe_official.sh
+
+      - name: Upload Build139 materialized diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Build139-materialized-diagnostics
+          path: |
+            work/swiftgram-src/submodules/TelegramUI/Sources/AppDelegate.swift
+            work/swiftgram-src/submodules/TelegramPresentationData/Sources/JerkgramStrings.swift
+            work/swiftgram-src/Telegram/Telegram-iOS/InfoBazel.plist
+            work/swiftgram-src/Telegram/Telegram-iOS/Info.plist
+            work/swiftgram-src/Telegram/BUILD
+          if-no-files-found: warn
+
+      - name: Publish Jerkgram Build139 artifact
+        if: success()
+        run: |
+          set -e
+          python3 scripts/jerkgram_publish_build138_artifact.py
+          cp artifacts/Jerkgram-Build138.ipa artifacts/Jerkgram-Build139.ipa
+          cp artifacts/Jerkgram-Build138-info.txt artifacts/Jerkgram-Build139-info.txt
+          printf '\nJerkgramInternalBuild=139\n' >> artifacts/Jerkgram-Build139-info.txt
+
+          # Verify the custom Jerkgram URL scheme survived Bazel materialization,
+          # signing and IPA publication. This checks the actual final Telegram app.
+          python3 - <<'PY'
+          import plistlib
+          import zipfile
+          from pathlib import Path
+
+          ipa = Path('artifacts/Jerkgram-Build139.ipa')
+          with zipfile.ZipFile(ipa) as archive:
+              info_name = next(
+                  name for name in archive.namelist()
+                  if name.startswith('Payload/') and name.endswith('.app/Info.plist')
+              )
+              info = plistlib.loads(archive.read(info_name))
+
+          schemes = {
+              scheme
+              for item in info.get('CFBundleURLTypes', [])
+              for scheme in item.get('CFBundleURLSchemes', [])
+          }
+          if 'jerkgram' not in schemes:
+              raise SystemExit('final IPA is missing jerkgram URL scheme')
+          if 'telegram' not in schemes or 'tg' not in schemes:
+              raise SystemExit('final IPA lost Telegram URL schemes')
+          print('[Build139 final IPA] jerkgram/telegram/tg URL schemes verified')
+          PY
+
+      - name: Upload Jerkgram Build139
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jerkgram-Build139
+          path: |
+            artifacts/Jerkgram-Build139.ipa
+            artifacts/Jerkgram-Build139-info.txt
+          if-no-files-found: error
