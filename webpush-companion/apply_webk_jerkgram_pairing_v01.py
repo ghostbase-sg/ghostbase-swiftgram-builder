@@ -11,22 +11,45 @@ if not SIGN_QR.exists():
 source = SIGN_QR.read_text()
 marker = "// MARK: Jerkgram Push Companion one-tap pairing"
 
+# Pairing status is UI-only and intentionally ephemeral. Do not persist the
+# Telegram login token or any pairing state in browser storage.
+solid_old = "import {onCleanup, onMount} from 'solid-js';"
+solid_new = "import {createSignal, onCleanup, onMount} from 'solid-js';"
+if solid_new not in source:
+    if solid_old not in source:
+        raise SystemExit("[jerkgram-pairing-webk] Solid import anchor not found")
+    source = source.replace(solid_old, solid_new, 1)
+
 state_anchor = """  let lastDrawnToken: Uint8Array | number[] | undefined;\n  let QRCodeStylingCtor: any;\n"""
-helper = state_anchor + """\n  // MARK: Jerkgram Push Companion one-tap pairing\n  function connectWithJerkgram() {\n    if(!lastDrawnToken) return;\n\n    // Reuse the exact short-lived auth.exportLoginToken value already used for\n    // Telegram's QR login. Jerkgram accepts it with auth.acceptLoginToken; no\n    // phone number, SMS code, 2FA password or native MTProto auth key leaves the\n    // native client.\n    const encoded = bytesToBase64(lastDrawnToken);\n    const token = fixBase64String(encoded, true);\n    window.location.assign('jerkgram://push/authorize?token=' + encodeURIComponent(token));\n  }\n"""
+helper = state_anchor + """\n  // MARK: Jerkgram Push Companion one-tap pairing\n  const [pairingBusy, setPairingBusy] = createSignal(false);\n  const [pairingStatus, setPairingStatus] = createSignal('');\n\n  async function connectWithJerkgram() {\n    if(pairingBusy()) return;\n    if(!lastDrawnToken || !QRCodeStylingCtor) {\n      setPairingStatus('Could not connect to Telegram. Try again.');\n      return;\n    }\n\n    setPairingBusy(true);\n    setPairingStatus('');\n\n    // Force the existing Web K QR-login iterator to export/import a token now,\n    // immediately before the native handoff. This deliberately reuses Web K's\n    // own auth.exportLoginToken / migration / loginTokenSuccess flow rather than\n    // implementing a second Telegram authorization protocol here. Reset prevToken\n    // so a still-valid token returned by Telegram is repainted into ephemeral state.\n    lastDrawnToken = undefined;\n    prevToken = undefined;\n    const needBreak = await iterate(QRCodeStylingCtor, false);\n\n    if(needBreak) {\n      lastDrawnToken = undefined;\n      setPairingBusy(false);\n      setPairingStatus('Could not connect to Telegram. Try again.');\n      return;\n    }\n    if(!lastDrawnToken) {\n      setPairingBusy(false);\n      setPairingStatus('Connection request expired. Try again.');\n      return;\n    }\n\n    // Copy only long enough to form the URL-safe handoff, then remove the token\n    // from the pairing state. No auth key/session database/cookie is transferred.\n    const encoded = bytesToBase64(lastDrawnToken);\n    const token = fixBase64String(encoded, true);\n    lastDrawnToken = undefined;\n    prevToken = undefined;\n    const deepLink = 'jerkgram://push/authorize?token=' + encodeURIComponent(token);\n\n    // iOS does not provide a synchronous success result for a custom-scheme open.\n    // Treat a page visibility transition as evidence that Jerkgram opened. If the\n    // PWA remains visible, surface a friendly retry state instead of an RPC error.\n    let didLeavePage = false;\n    let openTimer: number | undefined;\n    const cleanupOpenProbe = () => {\n      if(openTimer !== undefined) {\n        window.clearTimeout(openTimer);\n        openTimer = undefined;\n      }\n      document.removeEventListener('visibilitychange', onPairingVisibilityChange);\n    };\n    const onPairingVisibilityChange = () => {\n      if(document.hidden) {\n        didLeavePage = true;\n        if(openTimer !== undefined) {\n          window.clearTimeout(openTimer);\n          openTimer = undefined;\n        }\n      } else if(didLeavePage) {\n        cleanupOpenProbe();\n        setPairingBusy(false);\n        setPairingStatus('');\n      }\n    };\n    document.addEventListener('visibilitychange', onPairingVisibilityChange);\n    openTimer = window.setTimeout(() => {\n      if(!didLeavePage && !document.hidden) {\n        cleanupOpenProbe();\n        setPairingBusy(false);\n        setPairingStatus('Jerkgram could not be opened.');\n      }\n    }, 1500);\n\n    window.location.assign(deepLink);\n  }\n"""
 
 if marker not in source:
-    if state_anchor not in source:
-        raise SystemExit("[jerkgram-pairing-webk] state anchor not found")
+    if source.count(state_anchor) != 1:
+        raise SystemExit(f"[jerkgram-pairing-webk] expected one state anchor, found {source.count(state_anchor)}")
     source = source.replace(state_anchor, helper, 1)
 
 button_marker = "{/* Jerkgram Push Companion primary pairing action */}"
 render_anchor = """      {helpList}\n      <Button\n        class=\"btn-primary btn-secondary btn-primary-transparent primary\"\n"""
-render_injection = """      {helpList}\n      {/* Jerkgram Push Companion primary pairing action */}\n      <Button\n        primaryFilled\n        large\n        onClick={connectWithJerkgram}\n      >\n        Connect with Jerkgram\n      </Button>\n      <Button\n        class=\"btn-primary btn-secondary btn-primary-transparent primary\"\n"""
+render_injection = """      {helpList}\n      {/* Jerkgram Push Companion primary pairing action */}\n      <Button\n        primaryFilled\n        large\n        disabled={pairingBusy()}\n        onClick={connectWithJerkgram}\n      >\n        {pairingBusy() ? 'Opening Jerkgram…' : 'Connect with Jerkgram'}\n      </Button>\n      {pairingStatus() && (\n        <p class=\"secondary\" style={{'text-align': 'center', 'font-size': '13px', margin: '12px 8px 0'}}>\n          {pairingStatus()}\n        </p>\n      )}\n      <Button\n        class=\"btn-primary btn-secondary btn-primary-transparent primary\"\n"""
 
 if button_marker not in source:
-    if render_anchor not in source:
-        raise SystemExit("[jerkgram-pairing-webk] render anchor not found")
+    if source.count(render_anchor) != 1:
+        raise SystemExit(f"[jerkgram-pairing-webk] expected one render anchor, found {source.count(render_anchor)}")
     source = source.replace(render_anchor, render_injection, 1)
+
+# Fail closed if an upstream change left a partial application behind.
+for invariant in (
+    solid_new,
+    marker,
+    button_marker,
+    "await iterate(QRCodeStylingCtor, false)",
+    "lastDrawnToken = undefined",
+    "Jerkgram could not be opened.",
+    "Connection request expired. Try again.",
+    "Could not connect to Telegram. Try again.",
+):
+    if invariant not in source:
+        raise SystemExit(f"[jerkgram-pairing-webk] invariant missing after patch: {invariant}")
 
 SIGN_QR.write_text(source)
 
