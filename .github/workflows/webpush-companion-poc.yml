@@ -16,10 +16,13 @@ on:
       - "tests/test_webk_jerkgram_privacy_v01.py"
       - "tests/test_jerkgram_push_click_bridge_v01.py"
       - "tests/test_jerkgram_push_pairing_bridge_v01.py"
+      - "tests/test_jerkgram_push_pairing_wiring_v01.py"
       - "scripts/apply_jerkgram_push_click_bridge_v01.py"
       - "scripts/apply_jerkgram_push_pairing_bridge_v01.py"
       - "scripts/verify_jerkgram_push_click_bridge_v01.py"
       - "scripts/verify_jerkgram_push_pairing_bridge_v01.py"
+      - "scripts/install_jerkgram_v12w_build133_probe_hook.py"
+      - ".github/workflows/build.yml"
       - ".github/workflows/webpush-companion-poc.yml"
 
 permissions:
@@ -59,6 +62,7 @@ jobs:
           tests/test_webk_jerkgram_privacy_v01.py
           tests/test_jerkgram_push_click_bridge_v01.py
           tests/test_jerkgram_push_pairing_bridge_v01.py
+          tests/test_jerkgram_push_pairing_wiring_v01.py
 
   webk-compile:
     runs-on: ubuntu-latest
