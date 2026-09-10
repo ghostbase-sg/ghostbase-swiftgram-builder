@@ -1,0 +1,2 @@
+import{c as e}from"./langPack-DMgfWtRe.js";import{D as t,x as n}from"./solid-B2Ruf1Fd.js";import{c as r,h as i,p as a}from"./web-fMe0IVip.js";import{n as o}from"./index-Co-H4FM3.js";var s=i(`<span>`),c=i=>{let[c,l]=t(i,[`icon`,`class`]);return(()=>{var t=s();return a(t,n({get class(){return o(`tgico`,c.class)}},l),!1,!0),r(t,()=>e(c.icon)),t})()};export{c as t};
+//# sourceMappingURL=iconTsx-n72fyBUw.js.map

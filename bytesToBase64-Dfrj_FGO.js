@@ -1,0 +1,2 @@
+import{p as e}from"./userAgent-BmuhZF8d.js";function t(e){let t,r=``;for(let i=e.length,a=0,o=0;o<i;++o)t=o%3,a|=e[o]<<(16>>>t&24),(t===2||i-o===1)&&(r+=String.fromCharCode(n(a>>>18&63),n(a>>>12&63),n(a>>>6&63),n(a&63)),a=0);return r.replace(/A(?=A$|$)/g,`=`)}function n(e){return e<26?e+65:e<52?e+71:e<62?e-4:e===62?43:e===63?47:65}e.bytesToBase64=t;export{t};
+//# sourceMappingURL=bytesToBase64-Dfrj_FGO.js.map

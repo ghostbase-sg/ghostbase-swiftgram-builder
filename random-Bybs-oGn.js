@@ -1,0 +1,2 @@
+import{t as e}from"./randomize-4T_UoG6o.js";var t={8:new Uint8Array(1),16:new Uint16Array(1),32:new Uint32Array(1)};function n(n){let r=t[n];return e(r),r[0]}function r(){return``+n(32)+n(32)%16777215}function i(t){return e(new Uint8Array(t))}export{i as n,r,n as t};
+//# sourceMappingURL=random-Bybs-oGn.js.map

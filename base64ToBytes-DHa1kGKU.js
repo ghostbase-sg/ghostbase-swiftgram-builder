@@ -1,0 +1,2 @@
+import{p as e}from"./userAgent-BmuhZF8d.js";import{t}from"./fixBase64String-DzethI5g.js";function n(e){let n=atob(t(e,!1)),r=new Uint8Array(n.length);for(let e=0,t=r.length;e<t;++e)r[e]=n[e].charCodeAt(0);return r}e.base64ToBytes=n;export{n as t};
+//# sourceMappingURL=base64ToBytes-DHa1kGKU.js.map

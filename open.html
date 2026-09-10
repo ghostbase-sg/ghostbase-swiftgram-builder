@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Open Jerkgram</title>
+  <style>
+    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: Canvas; color: CanvasText; }
+    main { width: min(420px, calc(100% - 40px)); text-align: center; }
+    button { font: inherit; font-weight: 600; border: 0; border-radius: 14px; padding: 14px 20px; cursor: pointer; }
+    p { opacity: .7; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Jerkgram</h1>
+    <p id="status">Opening the message in Jerkgram…</p>
+    <button id="open" type="button" hidden>Open Jerkgram</button>
+  </main>
+  <script type="module">
+    import {buildJerkgramNativeUrl} from './handoff.js';
+
+    const button = document.getElementById('open');
+    const status = document.getElementById('status');
+    const nativeUrl = buildJerkgramNativeUrl(window.location.search);
+
+    if (!nativeUrl) {
+      status.textContent = 'This notification link is invalid.';
+    } else {
+      const openNative = () => { window.location.href = nativeUrl; };
+      button.addEventListener('click', openNative);
+      openNative();
+      window.setTimeout(() => {
+        status.textContent = 'If Jerkgram did not open automatically, tap the button.';
+        button.hidden = false;
+      }, 900);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+import{n as e}from"./rolldown-runtime-hePW80VL.js";import{_ as t,d as n,g as r,k as i}from"./solid-B2Ruf1Fd.js";var a=e({AuthFlowContext:()=>u,currentCard:()=>o,matchCard:()=>l,navigateAuth:()=>c,useAuthFlow:()=>d}),[o,s]=r(()=>t(null));function c(e){s(e)}function l(e){let t=o();return!t||t.name!==e?null:t}var u=n();function d(){let e=i(u);if(!e)throw Error(`useAuthFlow() called outside of <AuthFlowProvider>`);return e}export{c as a,l as i,a as n,d as o,o as r,u as t};
+//# sourceMappingURL=authFlow-DtxUnySH.js.map
