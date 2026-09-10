@@ -1,0 +1,100 @@
+name: Jerkgram Web Push Companion PoC
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev/webpush-companion-poc
+    paths:
+      - "webpush-companion/**"
+      - "tests/webpush_handoff_test.mjs"
+      - "tests/test_webk_jerkgram_push_patch.py"
+      - "tests/test_jerkgram_push_click_bridge_v01.py"
+      - "scripts/apply_jerkgram_push_click_bridge_v01.py"
+      - "scripts/verify_jerkgram_push_click_bridge_v01.py"
+      - ".github/workflows/webpush-companion-poc.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  static-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Jerkgram builder
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install pytest
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Test handoff parser
+        run: node tests/webpush_handoff_test.mjs
+
+      - name: Test bounded patchers
+        run: pytest -q tests/test_webk_jerkgram_push_patch.py tests/test_jerkgram_push_click_bridge_v01.py
+
+  webk-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Jerkgram builder
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Checkout pinned Telegram Web K
+        run: |
+          set -euxo pipefail
+          git clone --recurse-submodules https://github.com/morethanwords/tweb.git tweb
+          cd tweb
+          git checkout e9428f2a90f73d750f16a0b85817820516466364
+          git submodule update --init --recursive
+
+      - name: Apply Jerkgram companion patch
+        run: python webpush-companion/apply_webk_jerkgram_push_v01.py "$GITHUB_WORKSPACE/tweb"
+
+      - name: Install Web K dependencies
+        working-directory: tweb
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.16.0 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Typecheck patched Web K
+        working-directory: tweb
+        run: pnpm run typecheck
+
+      - name: Build patched Web K
+        working-directory: tweb
+        run: pnpm exec vite build
+
+      - name: Verify companion artifacts
+        run: |
+          set -euxo pipefail
+          test -f tweb/dist/open.html
+          test -f tweb/dist/handoff.js
+          grep -q "jerkgram://push/open" tweb/dist/handoff.js
+
+      - name: Upload deployable companion
+        uses: actions/upload-artifact@v4
+        with:
+          name: jerkgram-webpush-companion
+          path: tweb/dist
+          if-no-files-found: error
