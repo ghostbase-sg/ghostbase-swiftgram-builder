@@ -59,8 +59,10 @@ def test_webk_pairing_patch_uses_fresh_token_and_safe_handoff(tmp_path: Path):
     assert "bytesToBase64(freshToken)" in patched
     assert "bytesToBase64(lastDrawnToken)" not in patched
 
-    # Pairing credentials stay ephemeral. They must never be persisted or logged.
-    assert "lastDrawnToken = undefined" in patched
+    # The foreground handoff credential is a local byte reference and is dropped
+    # immediately after Base64URL conversion. Stock Web K may keep its own QR token
+    # in memory for polling, but pairing must never persist or log its local token.
+    assert "freshToken = undefined" in patched
     assert "localStorage" not in patched
     assert "sessionStorage" not in patched
     assert "indexedDB" not in patched
