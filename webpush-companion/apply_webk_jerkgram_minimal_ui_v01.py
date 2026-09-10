@@ -14,152 +14,93 @@ for path in (MOUNT_AUTH, SIGN_QR, BOOTSTRAP_IM, APP_IM):
     if not path.exists():
         raise SystemExit(f"[jerkgram-minimal-ui] missing {path}")
 
-# Fresh companion installations enter the official login-token flow directly,
-# never Web K's phone-number screen.
+# Fresh companion installations enter Web K's existing QR/login-token flow directly,
+# never the phone-number card.
 auth = MOUNT_AUTH.read_text()
 old_auth = "case 'authStateSignIn':\n      return {name: 'signIn'};"
 new_auth = "case 'authStateSignIn':\n      return {name: 'signQR'};"
 if new_auth not in auth:
-    if old_auth not in auth:
-        raise SystemExit("[jerkgram-minimal-ui] authStateSignIn anchor not found")
+    if auth.count(old_auth) != 1:
+        raise SystemExit(f"[jerkgram-minimal-ui] expected one authStateSignIn anchor, found {auth.count(old_auth)}")
     auth = auth.replace(old_auth, new_auth, 1)
 MOUNT_AUTH.write_text(auth)
 
-# The earlier one-tap pairing patch must have run. Replace the whole QR-oriented
-# card with a single action while preserving Telegram's export/import login-token
-# protocol and the official 2FA fallback.
-qr_before = SIGN_QR.read_text()
-for marker in ("auth.exportLoginToken", "jerkgram://push/authorize", "toIm()"):
-    if marker not in qr_before:
-        raise SystemExit(f"[jerkgram-minimal-ui] SignQRCard prerequisite missing: {marker}")
+# The pairing patch must already have run. This layer is presentation-only: keep
+# Web K's existing export/migrate/import/success loop intact and replace only the
+# visible QR-oriented return block. The QR host remains hidden because Web K still
+# owns token rotation and paintQR uses that host as part of its normal lifecycle.
+qr = SIGN_QR.read_text()
+for prerequisite in (
+    "auth.exportLoginToken",
+    "jerkgram://push/authorize",
+    "toIm()",
+    "Jerkgram Push Companion primary pairing action",
+):
+    if prerequisite not in qr:
+        raise SystemExit(f"[jerkgram-minimal-ui] SignQRCard prerequisite missing: {prerequisite}")
 
-SIGN_QR.write_text(r'''import {createSignal, onCleanup, onMount} from 'solid-js';
+minimal_marker = "{/* MARK: Jerkgram Notifications minimal auth surface */}"
+if minimal_marker not in qr:
+    render_scope = qr.find("  /* ---------- render ---------- */")
+    search_from = render_scope if render_scope >= 0 else 0
+    return_start = qr.find("  return (", search_from)
+    if return_start < 0:
+        raise SystemExit("[jerkgram-minimal-ui] SignQRCard return block start not found")
+    return_end_marker = "\n  );\n}"
+    return_end_pos = qr.find(return_end_marker, return_start)
+    if return_end_pos < 0:
+        raise SystemExit("[jerkgram-minimal-ui] SignQRCard return block end not found")
+    if qr.find("  return (", return_start + 1, return_end_pos) >= 0:
+        raise SystemExit("[jerkgram-minimal-ui] ambiguous SignQRCard return scope")
 
-import Button from '@components/buttonTsx';
-import bytesToBase64 from '@helpers/bytes/bytesToBase64';
-import fixBase64String from '@helpers/fixBase64String';
-import pause from '@helpers/schedulers/pause';
-import type {DcId} from '@types';
-import {AuthAuthorization, AuthLoginToken} from '@layer';
-import App from '@config/app';
-import AccountController from '@lib/accounts/accountController';
-import rootScope from '@lib/rootScope';
-
-import AuthCard from '@/pages/AuthCard';
-import {CardSpec, useAuthFlow} from '@/pages/authFlow';
-
-if(import.meta.hot) import.meta.hot.accept();
-
-type Spec = Extract<CardSpec, {name: 'signQR'}>;
-const FETCH_INTERVAL = 3;
-
-export default function SignQRCard(_props: {spec: Spec}) {
-  const {managers, navigate, toIm} = useAuthFlow();
-  const [ready, setReady] = createSignal(false);
-  let stopped = false;
-  let lastLoginToken: Uint8Array | number[] | undefined;
-
-  function connectWithJerkgram() {
-    if(!lastLoginToken) return;
-    const encoded = bytesToBase64(lastLoginToken);
-    const token = fixBase64String(encoded, true);
-    // Short-lived Telegram login token only. Native auth keys never leave Jerkgram.
-    window.location.assign('jerkgram://push/authorize?token=' + encodeURIComponent(token));
-  }
-
-  const onUserAuth = () => {
-    stopped = true;
-  };
-  rootScope.addEventListener('user_auth', onUserAuth, {once: true});
-
-  const options: {dcId?: DcId, ignoreErrors: true} = {ignoreErrors: true};
-
-  async function iterate(): Promise<boolean> {
-    try {
-      const userIds = await AccountController.getUserIds();
-      let loginToken = await managers.apiManager.invokeApi('auth.exportLoginToken', {
-        api_id: App.id,
-        api_hash: App.hash,
-        except_ids: userIds.map((userId) => userId.toUserId())
-      }, {ignoreErrors: true});
-
-      if(loginToken._ === 'auth.loginTokenMigrateTo') {
-        if(!options.dcId) {
-          options.dcId = loginToken.dc_id as DcId;
-          managers.apiManager.setBaseDcId(loginToken.dc_id);
-        }
-        loginToken = await managers.apiManager.invokeApi('auth.importLoginToken', {
-          token: loginToken.token
-        }, options) as AuthLoginToken.authLoginToken;
-      }
-
-      if(loginToken._ === 'auth.loginTokenSuccess') {
-        const authorization = loginToken.authorization as any as AuthAuthorization.authAuthorization;
-        await managers.apiManager.setUser(authorization.user);
-        await toIm();
-        return true;
-      }
-
-      lastLoginToken = loginToken.token;
-      setReady(true);
-
-      const timestamp = Date.now() / 1000;
-      const diff = loginToken.expires - timestamp - await managers.timeManager.getServerTimeOffset();
-      await pause(diff > FETCH_INTERVAL ? 1e3 * FETCH_INTERVAL : Math.max(250, 1e3 * diff | 0));
-      return false;
-    } catch(err) {
-      switch((err as ApiError).type) {
-        case 'SESSION_PASSWORD_NEEDED':
-          // Never weaken Telegram 2FA. Use its normal password confirmation card.
-          navigate({name: 'password'});
-          stopped = true;
-          break;
-        case 'AUTH_TOKEN_EXPIRED':
-          // The normal loop obtains a fresh export token on the next iteration.
-          break;
-        default:
-          console.error('Jerkgram companion pairing error:', err);
-          stopped = true;
-          break;
-      }
-      return false;
-    }
-  }
-
-  onMount(async() => {
-    managers.appStateManager.pushToState('authState', {_: 'authStateSignQr'});
-    while(!stopped) {
-      if(await iterate()) break;
-    }
-  });
-
-  onCleanup(() => {
-    stopped = true;
-    rootScope.removeEventListener('user_auth', onUserAuth);
-  });
-
-  return (
+    minimal_return = r'''  return (
     <AuthCard inputWrapper={false}>
+      {/* MARK: Jerkgram Notifications minimal auth surface */}
+      <div ref={stickerHost} style={{display: 'none'}} />
       <div style={{'text-align': 'center', padding: '12px 8px 20px'}}>
         <h1 style={{margin: '0 0 10px', 'font-size': '28px'}}>Jerkgram Notifications</h1>
         <p class="secondary" style={{margin: 0}}>
-          Connect notifications to the Telegram account already signed in to Jerkgram.
+          Connect Jerkgram to enable Telegram notifications.
         </p>
       </div>
-      <Button primaryFilled large disabled={!ready()} onClick={connectWithJerkgram}>
-        Connect with Jerkgram
+      {/* Jerkgram Push Companion primary pairing action */}
+      <Button
+        primaryFilled
+        large
+        disabled={pairingBusy()}
+        onClick={connectWithJerkgram}
+      >
+        {pairingBusy() ? 'Opening Jerkgram…' : 'Connect with Jerkgram'}
       </Button>
+      {pairingStatus() && (
+        <p class="secondary" style={{'text-align': 'center', 'font-size': '13px', margin: '12px 8px 0'}}>
+          {pairingStatus()}
+        </p>
+      )}
       <p class="secondary" style={{'text-align': 'center', 'font-size': '13px', margin: '16px 8px 0'}}>
-        No phone number, SMS code or QR scan is requested here.
+        Jerkgram must already be installed and logged in.
       </p>
     </AuthCard>
-  );
-}
-''')
+  );'''
+    return_end = return_end_pos + len("\n  );")
+    qr = qr[:return_start] + minimal_return + qr[return_end:]
 
-# A small runtime owns only Web Push subscription/registration. It deliberately
-# bypasses UiNotificationsManager and appDialogsManager so opening the companion
-# does not bootstrap chats, media, calls, sidebars or the normal Web K IM.
+# Fail-fast invariants: auth protocol markers from Web K must survive this patch.
+for invariant in (
+    "auth.exportLoginToken",
+    "auth.importLoginToken",
+    "auth.loginTokenSuccess",
+    "jerkgram://push/authorize",
+    minimal_marker,
+):
+    if invariant not in qr:
+        raise SystemExit(f"[jerkgram-minimal-ui] SignQRCard invariant missing after UI patch: {invariant}")
+if "navigate({name: 'signIn'})" in qr:
+    raise SystemExit("[jerkgram-minimal-ui] phone-login cancel path survived minimal auth surface")
+SIGN_QR.write_text(qr)
+
+# A small runtime owns only Web Push subscription/registration. Opening the
+# companion does not bootstrap chats, media, calls, sidebars or normal Web K IM.
 PUSH.write_text(r'''import {SETTINGS_INIT} from '@config/state';
 import apiManagerProxy from '@lib/apiManagerProxy';
 import webPushApiManager from '@lib/webPushApiManager';
@@ -189,9 +130,26 @@ export async function ensureJerkgramPushRegistered(): Promise<boolean> {
   await apiManagerProxy.pushSingleManager.registerDevice(tokenData);
   return true;
 }
+
+export async function disconnectJerkgramCompanionPush(): Promise<void> {
+  const tokenData = await webPushApiManager.getSubscription();
+  if(tokenData) {
+    // Re-enter Web K's own push manager before unregistering. This keeps the
+    // account.unregisterDevice implementation and multi-account bookkeeping in
+    // one stock owner even after a fresh PWA process was launched for Disconnect.
+    await apiManagerProxy.pushSingleManager.registerDevice(tokenData);
+    await apiManagerProxy.pushSingleManager.unregisterDevice(tokenData);
+  }
+  await webPushApiManager.unsubscribe();
+}
 ''')
 
-SHELL.write_text(r'''import {ensureJerkgramPushRegistered} from '@lib/jerkgramCompanionPush';
+SHELL.write_text(r'''import apiManagerProxy from '@lib/apiManagerProxy';
+import rootScope from '@lib/rootScope';
+import {
+  disconnectJerkgramCompanionPush,
+  ensureJerkgramPushRegistered
+} from '@lib/jerkgramCompanionPush';
 
 let mounted = false;
 
@@ -206,6 +164,15 @@ function make<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string): HTM
   return element;
 }
 
+function currentAccountLabel(): string {
+  const user = apiManagerProxy.getUser(rootScope.myId.toUserId());
+  const username = user?.username?.trim();
+  if(username) return `@${username}`;
+
+  const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim();
+  return displayName || 'Telegram account';
+}
+
 export default function mountJerkgramCompanionShell(): void {
   if(mounted) return;
   mounted = true;
@@ -216,9 +183,12 @@ export default function mountJerkgramCompanionShell(): void {
     #jerkgram-notifications-card{width:min(100%,420px);background:#fff;border-radius:24px;padding:28px;box-sizing:border-box;box-shadow:0 18px 60px rgba(0,0,0,.12)}
     #jerkgram-notifications-card h1{font-size:28px;line-height:1.12;margin:0 0 10px}
     #jerkgram-notifications-card p{font-size:15px;line-height:1.45;margin:0;color:#666}
-    #jerkgram-notifications-status{margin-top:20px!important;padding:13px 14px;border-radius:14px;background:#f2f2f7;color:#222!important}
-    #jerkgram-notifications-enable{width:100%;margin-top:18px;border:0;border-radius:14px;padding:14px 16px;font:inherit;font-weight:600;background:#111;color:#fff}
-    #jerkgram-notifications-enable:disabled{opacity:.45}
+    #jerkgram-notifications-account{margin-top:18px!important;color:#222!important;font-weight:600}
+    #jerkgram-notifications-status{margin-top:12px!important;padding:13px 14px;border-radius:14px;background:#f2f2f7;color:#222!important}
+    #jerkgram-notifications-enable,#jerkgram-notifications-disconnect{width:100%;margin-top:18px;border:0;border-radius:14px;padding:14px 16px;font:inherit;font-weight:600}
+    #jerkgram-notifications-enable{background:#111;color:#fff}
+    #jerkgram-notifications-disconnect{background:#f2f2f7;color:#b42318}
+    #jerkgram-notifications-enable:disabled,#jerkgram-notifications-disconnect:disabled{opacity:.45}
   `;
 
   const shell = make('main');
@@ -227,19 +197,27 @@ export default function mountJerkgramCompanionShell(): void {
   card.id = 'jerkgram-notifications-card';
   const title = make('h1', 'Jerkgram Notifications');
   const intro = make('p', 'Notification companion for Jerkgram. After setup, this app can stay closed.');
+  const account = make('p', `Connected as ${currentAccountLabel()}`);
+  account.id = 'jerkgram-notifications-account';
   const status = make('p');
   status.id = 'jerkgram-notifications-status';
   const enable = make('button');
   enable.id = 'jerkgram-notifications-enable';
   enable.type = 'button';
   enable.textContent = 'Enable Notifications';
+  const disconnect = make('button');
+  disconnect.id = 'jerkgram-notifications-disconnect';
+  disconnect.type = 'button';
+  disconnect.textContent = 'Disconnect';
 
-  card.append(title, intro, status, enable);
+  card.append(title, intro, account, status, enable, disconnect);
   shell.append(card);
   document.head.append(style);
   document.body.append(shell);
 
   const renderState = async() => {
+    disconnect.disabled = false;
+
     if(!('Notification' in window) || !('serviceWorker' in navigator)) {
       status.textContent = 'Web Push is not available in this browser.';
       enable.disabled = true;
@@ -271,8 +249,8 @@ export default function mountJerkgramCompanionShell(): void {
           enable.textContent = 'Retry';
           enable.disabled = false;
         }
-      } catch(error) {
-        console.error('Jerkgram push registration failed:', error);
+      } catch {
+        console.error('Jerkgram push registration failed');
         status.textContent = 'Push registration failed. Try again.';
         enable.textContent = 'Retry';
         enable.disabled = false;
@@ -293,13 +271,28 @@ export default function mountJerkgramCompanionShell(): void {
     await renderState();
   });
 
+  disconnect.addEventListener('click', async() => {
+    enable.disabled = true;
+    disconnect.disabled = true;
+    status.textContent = 'Disconnecting…';
+    try {
+      await disconnectJerkgramCompanionPush();
+      await rootScope.managers.apiManager.logOut();
+      window.location.reload();
+    } catch {
+      console.error('Jerkgram companion disconnect failed');
+      status.textContent = 'Could not disconnect. Try again.';
+      disconnect.disabled = false;
+      await renderState();
+    }
+  });
+
   void renderState();
 }
 ''')
 
 # The post-auth entry point is deliberately notification-only. No dynamic import
-# of appDialogsManager means its large chat/IM dependency graph is not requested
-# by this companion bootstrap.
+# of appDialogsManager means its large chat/IM dependency graph is not requested.
 BOOTSTRAP_IM.write_text(r'''import rootScope from '@lib/rootScope';
 import mountJerkgramCompanionShell from '@lib/jerkgramCompanionShell';
 import {startJerkgramCompanionPushRuntime} from '@lib/jerkgramCompanionPush';
@@ -330,7 +323,7 @@ APP_IM.write_text(im)
 
 print("[jerkgram-minimal-ui] OK")
 print("  patched:", MOUNT_AUTH)
-print("  replaced:", SIGN_QR)
+print("  presentation-only:", SIGN_QR)
 print("  replaced:", BOOTSTRAP_IM)
 print("  created:", PUSH)
 print("  created:", SHELL)
