@@ -80,7 +80,7 @@ class Build133TelemetryV2Tests(unittest.TestCase):
 public enum JerkgramReleaseIdentity {
     public static let displayVersion = "1.0.2"
     public static let technicalVersion = "1.0.2"
-    public static let build = "138"
+    public static let build = "139"
     public static let telegramBase = "12.9.2"
 }
 ''')
