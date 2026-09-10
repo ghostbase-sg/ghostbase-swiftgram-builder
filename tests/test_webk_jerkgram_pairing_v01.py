@@ -14,11 +14,16 @@ def test_webk_pairing_patch_uses_fresh_token_and_safe_handoff(tmp_path: Path):
         "import fixBase64String from '@helpers/fixBase64String';\n"
         "export default function SignQRCard() {\n"
         "  let stopped = false;\n"
+        "  let prevToken: Uint8Array | undefined;\n"
         "  let lastDrawnToken: Uint8Array | number[] | undefined;\n"
         "  let QRCodeStylingCtor: any;\n"
         "  const helpList = null;\n"
         "  async function iterate(QRCodeStyling: any, isLoop: boolean): Promise<boolean> {\n"
+        "    const loginToken: any = {_: 'auth.loginToken', token: new Uint8Array([1])};\n"
         "    // auth.exportLoginToken / auth.importLoginToken / auth.loginTokenSuccess are owned by Web K.\n"
+        "    if(!prevToken || !bytesCmp(prevToken, loginToken.token)) {\n"
+        "      prevToken = loginToken.token;\n"
+        "    }\n"
         "    return false;\n"
         "  }\n"
         "  return (<>\n"
@@ -46,7 +51,13 @@ def test_webk_pairing_patch_uses_fresh_token_and_safe_handoff(tmp_path: Path):
     # A tap must force Web K's existing login-token iteration immediately instead
     # of reusing a token that may have been sitting in memory for several seconds.
     assert "async function connectWithJerkgram()" in patched
-    assert "await iterate(QRCodeStylingCtor, false)" in patched
+    assert "let freshToken: Uint8Array | number[] | undefined" in patched
+    assert "onJerkgramToken?: (token: Uint8Array | number[]) => void" in patched
+    assert "onJerkgramToken?.(loginToken.token)" in patched
+    assert "await iterate(QRCodeStylingCtor, false, (token) =>" in patched
+    assert "freshToken = token" in patched
+    assert "bytesToBase64(freshToken)" in patched
+    assert "bytesToBase64(lastDrawnToken)" not in patched
 
     # Pairing credentials stay ephemeral. They must never be persisted or logged.
     assert "lastDrawnToken = undefined" in patched
@@ -65,9 +76,10 @@ def test_webk_pairing_patch_uses_fresh_token_and_safe_handoff(tmp_path: Path):
     assert patched.count("Jerkgram Push Companion one-tap pairing") == 1
     assert patched.count("Jerkgram Push Companion primary pairing action") == 1
 
-    # Idempotent: no duplicated helper or button.
+    # Idempotent: no duplicated helper, capture hook or button.
     result2 = subprocess.run([sys.executable, str(patcher), str(root)], capture_output=True, text=True)
     assert result2.returncode == 0, result2.stderr + result2.stdout
     patched2 = target.read_text()
     assert patched2.count("Jerkgram Push Companion one-tap pairing") == 1
     assert patched2.count("Jerkgram Push Companion primary pairing action") == 1
+    assert patched2.count("onJerkgramToken?.(loginToken.token)") == 1
