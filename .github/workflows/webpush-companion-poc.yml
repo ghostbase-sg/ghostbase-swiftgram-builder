@@ -10,6 +10,8 @@ on:
       - "tests/webpush_handoff_test.mjs"
       - "tests/test_webk_jerkgram_push_patch.py"
       - "tests/test_webk_jerkgram_pairing_v01.py"
+      - "tests/test_webk_jerkgram_branding_v01.py"
+      - "tests/test_webk_companion_package_v01.py"
       - "tests/test_jerkgram_push_click_bridge_v01.py"
       - "tests/test_jerkgram_push_pairing_bridge_v01.py"
       - "scripts/apply_jerkgram_push_click_bridge_v01.py"
@@ -43,11 +45,13 @@ jobs:
       - name: Test handoff parser
         run: node tests/webpush_handoff_test.mjs
 
-      - name: Test bounded patchers
+      - name: Test bounded patchers and packaging
         run: >-
           pytest -q
           tests/test_webk_jerkgram_push_patch.py
           tests/test_webk_jerkgram_pairing_v01.py
+          tests/test_webk_jerkgram_branding_v01.py
+          tests/test_webk_companion_package_v01.py
           tests/test_jerkgram_push_click_bridge_v01.py
           tests/test_jerkgram_push_pairing_bridge_v01.py
 
@@ -81,6 +85,9 @@ jobs:
       - name: Apply Jerkgram companion one-tap pairing patch
         run: python webpush-companion/apply_webk_jerkgram_pairing_v01.py "$GITHUB_WORKSPACE/tweb"
 
+      - name: Apply isolated companion branding
+        run: python webpush-companion/apply_webk_jerkgram_branding_v01.py "$GITHUB_WORKSPACE/tweb"
+
       - name: Install Web K dependencies
         working-directory: tweb
         run: |
@@ -96,20 +103,20 @@ jobs:
         working-directory: tweb
         run: pnpm exec vite build
 
-      # Telegram Web K deliberately sets copyPublicDir:false. Copy only the two
-      # Jerkgram-owned handoff files; do not enable global public-dir copying.
-      - name: Package Jerkgram companion handoff assets
-        run: |
-          set -euxo pipefail
-          install -m 0644 tweb/public/open.html tweb/dist/open.html
-          install -m 0644 tweb/public/handoff.js tweb/dist/handoff.js
+      - name: Package filtered Web K PWA runtime assets
+        run: python webpush-companion/package_webk_dist_v01.py "$GITHUB_WORKSPACE/tweb"
 
       - name: Verify companion artifacts
         run: |
           set -euxo pipefail
           test -f tweb/dist/open.html
           test -f tweb/dist/handoff.js
+          test -f tweb/dist/site.webmanifest
+          test -f tweb/dist/site_apple.webmanifest
+          test -f tweb/dist/assets/img/apple-touch-icon.png
           grep -q "jerkgram://push/open" tweb/dist/handoff.js
+          grep -q '"name": "Jerkgram Notifications"' tweb/dist/site.webmanifest
+          ! grep -q '"origin": "https://t.me"' tweb/dist/site.webmanifest
           grep -R -q "Connect with Jerkgram" tweb/dist/*.js
           grep -R -q "jerkgram://push/authorize" tweb/dist/*.js
 
