@@ -3,18 +3,24 @@ import subprocess
 import sys
 
 
-def test_webk_pairing_patch(tmp_path: Path):
+def test_webk_pairing_patch_uses_fresh_token_and_safe_handoff(tmp_path: Path):
     root = tmp_path / "tweb"
     target = root / "src/pages/cards/SignQRCard.tsx"
     target.parent.mkdir(parents=True)
     target.write_text(
+        "import {onCleanup, onMount} from 'solid-js';\n"
         "import Button from '@components/buttonTsx';\n"
         "import bytesToBase64 from '@helpers/bytes/bytesToBase64';\n"
         "import fixBase64String from '@helpers/fixBase64String';\n"
         "export default function SignQRCard() {\n"
+        "  let stopped = false;\n"
         "  let lastDrawnToken: Uint8Array | number[] | undefined;\n"
         "  let QRCodeStylingCtor: any;\n"
         "  const helpList = null;\n"
+        "  async function iterate(QRCodeStyling: any, isLoop: boolean): Promise<boolean> {\n"
+        "    // auth.exportLoginToken / auth.importLoginToken / auth.loginTokenSuccess are owned by Web K.\n"
+        "    return false;\n"
+        "  }\n"
         "  return (<>\n"
         "      {helpList}\n"
         "      <Button\n"
@@ -32,10 +38,30 @@ def test_webk_pairing_patch(tmp_path: Path):
 
     patched = target.read_text()
     assert "jerkgram://push/authorize?token=" in patched
-    assert "auth.acceptLoginToken" in patched
     assert "Connect with Jerkgram" in patched
     assert "lastDrawnToken" in patched
-    assert "phone" in patched.lower()  # comment documents that no phone credential is transferred
+    assert "bytesToBase64" in patched
+    assert "fixBase64String" in patched
+
+    # A tap must force Web K's existing login-token iteration immediately instead
+    # of reusing a token that may have been sitting in memory for several seconds.
+    assert "async function connectWithJerkgram()" in patched
+    assert "await iterate(QRCodeStylingCtor, false)" in patched
+
+    # Pairing credentials stay ephemeral. They must never be persisted or logged.
+    assert "lastDrawnToken = undefined" in patched
+    assert "localStorage" not in patched
+    assert "sessionStorage" not in patched
+    assert "indexedDB" not in patched
+    assert "console.log(token" not in patched
+    assert "console.error(token" not in patched
+
+    # The companion needs user-facing retry states without exposing Telegram RPC text.
+    assert "Jerkgram could not be opened." in patched
+    assert "Connection request expired. Try again." in patched
+    assert "Could not connect to Telegram. Try again." in patched
+    assert "visibilitychange" in patched
+
     assert patched.count("Jerkgram Push Companion one-tap pairing") == 1
     assert patched.count("Jerkgram Push Companion primary pairing action") == 1
 
