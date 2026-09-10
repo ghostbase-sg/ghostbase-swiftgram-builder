@@ -12,6 +12,7 @@ on:
       - "tests/test_webk_jerkgram_pairing_v01.py"
       - "tests/test_webk_jerkgram_branding_v01.py"
       - "tests/test_webk_companion_package_v01.py"
+      - "tests/test_webk_companion_shell_v01.py"
       - "tests/test_jerkgram_push_click_bridge_v01.py"
       - "tests/test_jerkgram_push_pairing_bridge_v01.py"
       - "scripts/apply_jerkgram_push_click_bridge_v01.py"
@@ -52,6 +53,7 @@ jobs:
           tests/test_webk_jerkgram_pairing_v01.py
           tests/test_webk_jerkgram_branding_v01.py
           tests/test_webk_companion_package_v01.py
+          tests/test_webk_companion_shell_v01.py
           tests/test_jerkgram_push_click_bridge_v01.py
           tests/test_jerkgram_push_pairing_bridge_v01.py
 
@@ -88,6 +90,9 @@ jobs:
       - name: Apply isolated companion branding
         run: python webpush-companion/apply_webk_jerkgram_branding_v01.py "$GITHUB_WORKSPACE/tweb"
 
+      - name: Apply notification-only companion UI
+        run: python webpush-companion/apply_webk_jerkgram_minimal_ui_v01.py "$GITHUB_WORKSPACE/tweb"
+
       - name: Install Web K dependencies
         working-directory: tweb
         run: |
@@ -121,6 +126,8 @@ jobs:
           ! grep -q 'web.telegram.org' tweb/dist/index.html
           grep -R -q "Connect with Jerkgram" tweb/dist/*.js
           grep -R -q "jerkgram://push/authorize" tweb/dist/*.js
+          grep -R -q "Enable Notifications" tweb/dist/*.js
+          grep -R -q "Add Jerkgram Notifications to the Home Screen" tweb/dist/*.js
 
       - name: Upload deployable companion
         uses: actions/upload-artifact@v4
@@ -156,6 +163,7 @@ jobs:
           test -f "$RUNNER_TEMP/jerkgram-notifications/open.html"
           grep -q '<title>Jerkgram Notifications</title>' "$RUNNER_TEMP/jerkgram-notifications/index.html"
           grep -q 'jerkgram://push/open' "$RUNNER_TEMP/jerkgram-notifications/handoff.js"
+          grep -R -q 'Enable Notifications' "$RUNNER_TEMP/jerkgram-notifications"/*.js
 
       - name: Publish verified static PWA to gh-pages branch
         run: |
