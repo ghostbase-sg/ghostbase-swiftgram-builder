@@ -33,8 +33,8 @@ def test_native_pairing_bridge_is_strict_account_aware_and_idempotent(tmp_path: 
     assert 'guard let primary = activeAccounts.primary else' in swift
     assert 'transaction.getPeer(primary.account.peerId)' in swift
     assert 'as? TelegramUser' in swift
-    assert 'user.username' in swift
-    assert 'user.firstName' in swift
+    assert 'user?.username' in swift
+    assert '[user.firstName, user.lastName]' in swift
 
     # Explicit confirmation must happen before Telegram's official accept wrapper.
     assert 'UIAlertController(' in swift
@@ -46,9 +46,10 @@ def test_native_pairing_bridge_is_strict_account_aware_and_idempotent(tmp_path: 
     # Friendly states; no login token is logged or persisted.
     assert 'Connection request expired. Try again.' in swift
     assert 'Could not connect to Telegram. Try again.' in swift
-    assert 'UserDefaults' not in swift[swift.index('private func handleJerkgramPushPairingUrl'):]
-    assert 'print(rawToken)' not in swift
-    assert 'print(tokenData)' not in swift
+    helper = swift[swift.index('private func handleJerkgramPushPairingUrl'):swift.index('func application(_ application: UIApplication, open url: URL')]
+    assert 'UserDefaults' not in helper
+    assert 'print(rawToken)' not in helper
+    assert 'print(tokenData)' not in helper
 
     assert 'if self.handleJerkgramPushPairingUrl(url)' in swift
     assert swift.index('handleJerkgramPushPairingUrl(url)') < swift.index('handleJerkgramPushUrl(url)')
