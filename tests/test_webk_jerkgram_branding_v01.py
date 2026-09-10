@@ -23,9 +23,9 @@ def test_companion_branding_and_scope(tmp_path: Path):
         "<meta name=\"mobile-web-app-title\" content=\"Telegram Web\">\n"
         "<meta name=\"apple-mobile-web-app-title\" content=\"Telegram Web\">\n"
         "<meta name=\"application-name\" content=\"Telegram Web\">\n"
-        "<meta property=\"og:url\" content=\"https://web.telegram.org/k/\">\n"
-        "<meta property=\"twitter:url\" content=\"https://web.telegram.org/k/\">\n"
-        "<link rel=\"canonical\" href=\"https://web.telegram.org/\">\n"
+        "<meta property=\"og:url\" content=\"{{url}}\">\n"
+        "<meta property=\"twitter:url\" content=\"{{url}}\">\n"
+        "<link rel=\"canonical\" href=\"{{origin}}\">\n"
         "</head></html>\n"
     )
     manifest = {
@@ -55,8 +55,8 @@ def test_companion_branding_and_scope(tmp_path: Path):
     vite = (root / "vite.config.ts").read_text()
     assert "title: 'Jerkgram Notifications'" in vite
     assert "Notification companion for Jerkgram." in vite
-    assert "url: './'" in vite
-    assert "origin: './'" in vite
+    assert "url: ''" in vite
+    assert "origin: ''" in vite
     assert "web.telegram.org" not in vite
 
     html = (root / "index.html").read_text()
@@ -64,6 +64,9 @@ def test_companion_branding_and_scope(tmp_path: Path):
     assert 'content="Jerkgram Notifications"' in html
     assert "Notification companion for Jerkgram." in html
     assert "web.telegram.org" not in html
+    assert 'property="og:url"' not in html
+    assert 'property="twitter:url"' not in html
+    assert 'rel="canonical"' not in html
 
     for name in ("site.webmanifest", "site_apple.webmanifest"):
         data = json.loads((public / name).read_text())

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import json
+import re
 import sys
 
 ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
@@ -28,8 +29,10 @@ vite = replace_required(
     "description: 'Notification companion for Jerkgram.',",
     "description",
 )
-vite = replace_required(vite, "url: 'https://web.telegram.org/k/',", "url: './',", "url")
-vite = replace_required(vite, "origin: 'https://web.telegram.org/'", "origin: './'", "origin")
+# The companion is deployed to a user-selected dedicated HTTPS origin. Do not
+# bake Telegram Web's production origin into generated metadata.
+vite = replace_required(vite, "url: 'https://web.telegram.org/k/',", "url: '',", "url")
+vite = replace_required(vite, "origin: 'https://web.telegram.org/'", "origin: ''", "origin")
 VITE.write_text(vite)
 
 html = INDEX.read_text()
@@ -41,6 +44,12 @@ html = html.replace(
 html = html.replace('content="Telegram Web"', 'content="Jerkgram Notifications"')
 html = html.replace('href="https://web.telegram.org/"', 'href="./"')
 html = html.replace('content="https://web.telegram.org/k/"', 'content="./"')
+
+# URL SEO metadata is irrelevant to an installed notification agent and causes
+# Vite to treat relative placeholders as build assets. Remove it entirely; this
+# also prevents the Telegram Web origin from ever leaking into the deployable.
+html = re.sub(r'^\s*<meta property="(?:og|twitter):url"[^>]*>\s*\n?', '', html, flags=re.MULTILINE)
+html = re.sub(r'^\s*<link rel="canonical"[^>]*>\s*\n?', '', html, flags=re.MULTILINE)
 if "web.telegram.org" in html:
     raise SystemExit("[jerkgram-webk-branding] Telegram Web URL remains in index template")
 INDEX.write_text(html)
@@ -54,8 +63,6 @@ for path in MANIFESTS:
     data["scope"] = "./"
     data["description"] = "Notification companion for Jerkgram."
 
-    # Keep only install-size icons. The Apple touch icon is linked from index.html
-    # separately; the manifest does not need Web K's full icon matrix.
     icons = data.get("icons") or []
     compact_icons = [icon for icon in icons if icon.get("sizes") in {"192x192", "512x512"}]
     if compact_icons:
