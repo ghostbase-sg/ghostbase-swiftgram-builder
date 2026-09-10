@@ -14,6 +14,16 @@ def test_companion_branding_and_scope(tmp_path: Path):
         "  description: 'Telegram is a cloud-based mobile and desktop messaging app with a focus on security and speed.',\n"
         "}\n"
     )
+    (root / "index.html").write_text(
+        "<html><head>\n"
+        "<title>Telegram Web</title>\n"
+        "<meta name=\"description\" content=\"Telegram is a cloud-based mobile and desktop messaging app with a focus on security and speed.\">\n"
+        "<meta name=\"mobile-web-app-title\" content=\"Telegram Web\">\n"
+        "<meta name=\"apple-mobile-web-app-title\" content=\"Telegram Web\">\n"
+        "<meta name=\"application-name\" content=\"Telegram Web\">\n"
+        "<link rel=\"canonical\" href=\"https://web.telegram.org/\">\n"
+        "</head></html>\n"
+    )
     manifest = {
         "name": "Telegram Web",
         "short_name": "Telegram Web",
@@ -35,6 +45,12 @@ def test_companion_branding_and_scope(tmp_path: Path):
     vite = (root / "vite.config.ts").read_text()
     assert "title: 'Jerkgram Notifications'" in vite
     assert "Notification companion for Jerkgram." in vite
+
+    html = (root / "index.html").read_text()
+    assert "<title>Jerkgram Notifications</title>" in html
+    assert 'content="Jerkgram Notifications"' in html
+    assert "Notification companion for Jerkgram." in html
+    assert "web.telegram.org" not in html
 
     for name in ("site.webmanifest", "site_apple.webmanifest"):
         data = json.loads((public / name).read_text())
