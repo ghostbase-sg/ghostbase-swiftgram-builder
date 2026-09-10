@@ -1,0 +1,47 @@
+from pathlib import Path
+import subprocess
+import sys
+
+
+def test_webk_pairing_patch(tmp_path: Path):
+    root = tmp_path / "tweb"
+    target = root / "src/pages/cards/SignQRCard.tsx"
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        "import Button from '@components/buttonTsx';\n"
+        "import bytesToBase64 from '@helpers/bytes/bytesToBase64';\n"
+        "import fixBase64String from '@helpers/fixBase64String';\n"
+        "export default function SignQRCard() {\n"
+        "  let lastDrawnToken: Uint8Array | number[] | undefined;\n"
+        "  let QRCodeStylingCtor: any;\n"
+        "  const helpList = null;\n"
+        "  return (<>\n"
+        "      {helpList}\n"
+        "      <Button\n"
+        "        class=\"btn-primary btn-secondary btn-primary-transparent primary\"\n"
+        "        onClick={() => {}}\n"
+        "        text=\"Login.QR.Cancel\"\n"
+        "      />\n"
+        "  </>);\n"
+        "}\n"
+    )
+
+    patcher = Path(__file__).parents[1] / "webpush-companion/apply_webk_jerkgram_pairing_v01.py"
+    result = subprocess.run([sys.executable, str(patcher), str(root)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    patched = target.read_text()
+    assert "jerkgram://push/authorize?token=" in patched
+    assert "auth.acceptLoginToken" in patched
+    assert "Connect with Jerkgram" in patched
+    assert "lastDrawnToken" in patched
+    assert "phone" in patched.lower()  # comment documents that no phone credential is transferred
+    assert patched.count("Jerkgram Push Companion one-tap pairing") == 1
+    assert patched.count("Jerkgram Push Companion primary pairing action") == 1
+
+    # Idempotent: no duplicated helper or button.
+    result2 = subprocess.run([sys.executable, str(patcher), str(root)], capture_output=True, text=True)
+    assert result2.returncode == 0, result2.stderr + result2.stdout
+    patched2 = target.read_text()
+    assert patched2.count("Jerkgram Push Companion one-tap pairing") == 1
+    assert patched2.count("Jerkgram Push Companion primary pairing action") == 1
