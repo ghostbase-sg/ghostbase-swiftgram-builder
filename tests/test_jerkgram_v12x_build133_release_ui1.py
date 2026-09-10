@@ -138,7 +138,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         for token in (
             'displayVersion = "1.0.2"',
             'technicalVersion = "1.0.2"',
-            'build = "138"',
+            'build = "139"',
             'telegramBase = "12.9.2"',
             '"Jerkgram Version \\(displayVersion)\\nBuild \\(build)\\nTelegram Base \\(telegramBase)"',
         ):
@@ -152,11 +152,11 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
     def test_existing_release_identity_advances_to_current_build(self):
         module = self.load_patch()
         previous = module.patch_strings_text(STRINGS_FIXTURE).replace(
-            'build = "138"', 'build = "137"'
+            'build = "139"', 'build = "138"'
         )
         updated = module.patch_strings_text(previous)
-        self.assertIn('build = "138"', updated)
-        self.assertNotIn('build = "137"', updated)
+        self.assertIn('build = "139"', updated)
+        self.assertNotIn('build = "138"', updated)
         self.assertEqual(updated, module.patch_strings_text(updated))
 
     def test_final_ipa_contract_keeps_last_good_public_telegram_identity(self):
@@ -178,6 +178,7 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
             "CFBundleShortVersionString",
             'displayVersion = "1.0.2"',
             'technicalVersion = "1.0.2"',
+            'build = "139"',
             "Telegram Base",
         ):
             self.assertIn(token, source)
