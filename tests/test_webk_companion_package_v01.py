@@ -3,33 +3,63 @@ import subprocess
 import sys
 
 
-def test_companion_packaging_filters_public_assets(tmp_path: Path):
+def test_companion_packaging_is_notification_only(tmp_path: Path):
     root = tmp_path / "tweb"
     public = root / "public"
     dist = root / "dist"
     (public / "assets/img").mkdir(parents=True)
+    (public / "assets/fonts").mkdir(parents=True)
+    (public / "assets/emoji").mkdir(parents=True)
+    (public / "assets/tgs").mkdir(parents=True)
+    (public / "assets/audio").mkdir(parents=True)
     dist.mkdir(parents=True)
 
     (public / "site.webmanifest").write_text("{}")
     (public / "site_apple.webmanifest").write_text("{}")
     (public / "open.html").write_text("open")
     (public / "handoff.js").write_text("handoff")
-    (public / "assets/img/apple-touch-icon.png").write_bytes(b"png")
-    (public / "assets/img/other.png").write_bytes(b"png2")
-    (public / "browserconfig.xml").write_text("xml")
-    (public / "STALE-BUNDLE.js").write_text("must not ship")
-    (public / "STALE-BUNDLE.js.map").write_text("must not ship")
+    for name in (
+        "apple-touch-icon.png",
+        "favicon-16x16.png",
+        "favicon-32x32.png",
+        "favicon.ico",
+        "android-chrome-192x192.png",
+        "android-chrome-512x512.png",
+        "icon_square_192.png",
+        "icon_square_512.png",
+        "logo_filled_rounded.png",
+        "logo_plain.svg",
+    ):
+        (public / "assets/img" / name).write_bytes(b"asset")
+
+    (public / "assets/fonts/tgico.woff").write_bytes(b"font")
+    (public / "assets/img/other.png").write_bytes(b"drop")
+    (public / "assets/img/screenshot.jpg").write_bytes(b"drop")
+    (public / "assets/emoji/emoji.png").write_bytes(b"drop")
+    (public / "assets/tgs/animation.tgs").write_bytes(b"drop")
+    (public / "assets/audio/sound.mp3").write_bytes(b"drop")
+    (public / "STALE-BUNDLE.js").write_text("drop")
+    (dist / "app-123.js").write_text("keep built runtime")
+    (dist / "app-123.js.map").write_text("drop map")
 
     packager = Path(__file__).parents[1] / "webpush-companion/package_webk_dist_v01.py"
     result = subprocess.run([sys.executable, str(packager), str(root)], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr + result.stdout
 
+    assert (dist / "app-123.js").exists()
+    assert not (dist / "app-123.js.map").exists()
     assert (dist / "site.webmanifest").exists()
     assert (dist / "site_apple.webmanifest").exists()
     assert (dist / "open.html").exists()
     assert (dist / "handoff.js").exists()
     assert (dist / "assets/img/apple-touch-icon.png").exists()
-    assert (dist / "assets/img/other.png").exists()
-    assert (dist / "browserconfig.xml").exists()
+    assert (dist / "assets/img/logo_filled_rounded.png").exists()
+    assert (dist / "assets/img/logo_plain.svg").exists()
+    assert (dist / "assets/fonts/tgico.woff").exists()
+
+    assert not (dist / "assets/img/other.png").exists()
+    assert not (dist / "assets/img/screenshot.jpg").exists()
+    assert not (dist / "assets/emoji").exists()
+    assert not (dist / "assets/tgs").exists()
+    assert not (dist / "assets/audio").exists()
     assert not (dist / "STALE-BUNDLE.js").exists()
-    assert not (dist / "STALE-BUNDLE.js.map").exists()

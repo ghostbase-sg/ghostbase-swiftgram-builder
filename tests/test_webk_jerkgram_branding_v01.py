@@ -12,6 +12,8 @@ def test_companion_branding_and_scope(tmp_path: Path):
         "context: {\n"
         "  title: 'Telegram Web',\n"
         "  description: 'Telegram is a cloud-based mobile and desktop messaging app with a focus on security and speed.',\n"
+        "  url: 'https://web.telegram.org/k/',\n"
+        "  origin: 'https://web.telegram.org/'\n"
         "}\n"
     )
     (root / "index.html").write_text(
@@ -21,6 +23,8 @@ def test_companion_branding_and_scope(tmp_path: Path):
         "<meta name=\"mobile-web-app-title\" content=\"Telegram Web\">\n"
         "<meta name=\"apple-mobile-web-app-title\" content=\"Telegram Web\">\n"
         "<meta name=\"application-name\" content=\"Telegram Web\">\n"
+        "<meta property=\"og:url\" content=\"https://web.telegram.org/k/\">\n"
+        "<meta property=\"twitter:url\" content=\"https://web.telegram.org/k/\">\n"
         "<link rel=\"canonical\" href=\"https://web.telegram.org/\">\n"
         "</head></html>\n"
     )
@@ -32,7 +36,13 @@ def test_companion_branding_and_scope(tmp_path: Path):
         "scope": "./",
         "scope_extensions": [{"type": "origin", "origin": "https://t.me"}],
         "share_target": {"action": "./share/"},
-        "icons": [],
+        "screenshots": [{"src": "assets/img/screenshot.jpg"}],
+        "gcm_sender_id": "122867383838",
+        "icons": [
+            {"src": "assets/img/icon-36.png", "sizes": "36x36"},
+            {"src": "assets/img/icon-192.png", "sizes": "192x192"},
+            {"src": "assets/img/icon-512.png", "sizes": "512x512"},
+        ],
         "display": "standalone",
     }
     for name in ("site.webmanifest", "site_apple.webmanifest"):
@@ -45,6 +55,9 @@ def test_companion_branding_and_scope(tmp_path: Path):
     vite = (root / "vite.config.ts").read_text()
     assert "title: 'Jerkgram Notifications'" in vite
     assert "Notification companion for Jerkgram." in vite
+    assert "url: './'" in vite
+    assert "origin: './'" in vite
+    assert "web.telegram.org" not in vite
 
     html = (root / "index.html").read_text()
     assert "<title>Jerkgram Notifications</title>" in html
@@ -58,5 +71,8 @@ def test_companion_branding_and_scope(tmp_path: Path):
         assert data["short_name"] == "Jerkgram"
         assert data["id"] == "./"
         assert data["scope"] == "./"
+        assert {icon["sizes"] for icon in data["icons"]} == {"192x192", "512x512"}
         assert "scope_extensions" not in data
         assert "share_target" not in data
+        assert "screenshots" not in data
+        assert "gcm_sender_id" not in data
