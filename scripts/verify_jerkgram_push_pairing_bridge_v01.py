@@ -43,15 +43,18 @@ else:
         errors.append(f"pairing handler count={text.count(handler)}, expected 1")
     if text.count("if self.handleJerkgramPushPairingUrl(url)") != 1:
         errors.append("pairing dispatch must exist exactly once")
-    if text.count("self.window?.rootViewController?.present(") != 4:
-        errors.append("pairing alerts must use exactly four UIKit root-view-controller presentations")
-    if "self.mainWindow?.viewController?.present(" in text:
-        errors.append("pairing alerts must not call present on ContainableController")
 
-    if handler in text and "func application(_ application: UIApplication, open url: URL" in text:
+    dispatch_signature = "func application(_ application: UIApplication, open url: URL"
+    if handler in text and dispatch_signature in text:
         helper_start = text.index(handler)
-        dispatch_start = text.index("func application(_ application: UIApplication, open url: URL")
+        dispatch_start = text.index(dispatch_signature, helper_start)
         helper_scope = text[helper_start:dispatch_start]
+
+        if helper_scope.count("self.window?.rootViewController?.present(") != 4:
+            errors.append("pairing helper must use exactly four UIKit root-view-controller presentations")
+        if "self.mainWindow?.viewController?.present(" in helper_scope:
+            errors.append("pairing helper must not call present on ContainableController")
+
         for forbidden in (
             "UserDefaults",
             "print(rawToken)",
@@ -65,6 +68,8 @@ else:
         if "handleJerkgramPushPairingUrl(url)" in dispatch and "handleJerkgramPushUrl(url)" in dispatch:
             if dispatch.index("handleJerkgramPushPairingUrl(url)") > dispatch.index("handleJerkgramPushUrl(url)"):
                 errors.append("/authorize handler must run before /open handler")
+    elif handler in text:
+        errors.append("open-url dispatch signature missing after pairing helper")
 
 if errors:
     print("[jerkgram-push-pairing-verify] FAIL")
