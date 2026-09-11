@@ -18,6 +18,7 @@ def test_companion_packaging_is_notification_only(tmp_path: Path):
     (public / "site_apple.webmanifest").write_text("{}")
     (public / "open.html").write_text("open")
     (public / "handoff.js").write_text("handoff")
+    (public / "push-open-bootstrap.js").write_text("bootstrap")
     for name in (
         "apple-touch-icon.png",
         "favicon-16x16.png",
@@ -73,6 +74,7 @@ def test_companion_packaging_is_notification_only(tmp_path: Path):
     assert (dist / "site_apple.webmanifest").exists()
     assert (dist / "open.html").exists()
     assert (dist / "handoff.js").exists()
+    assert (dist / "push-open-bootstrap.js").exists()
     assert (dist / "assets/img/apple-touch-icon.png").exists()
     assert (dist / "assets/img/logo_filled_rounded.png").exists()
     assert (dist / "assets/img/logo_plain.svg").exists()
