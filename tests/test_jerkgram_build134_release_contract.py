@@ -22,17 +22,17 @@ def load(path: Path, name: str):
     return module
 
 
-class Build138ReleaseContract(unittest.TestCase):
+class Build140ReleaseContract(unittest.TestCase):
     def test_identity_uses_requested_bundle_and_build(self):
-        identity = load(REPO / "scripts/jerkgram_finalize_build133_identity.py", "identity134")
+        identity = load(REPO / "scripts/jerkgram_finalize_build133_identity.py", "identity140")
         self.assertEqual(identity.PUBLIC_BUNDLE, "com.jerkgram.ios")
-        self.assertEqual(identity.BUILD, "138")
+        self.assertEqual(identity.BUILD, "140")
         self.assertEqual(identity.TELEGRAM_VERSION, "12.9.2")
         self.assertEqual(identity.JERKGRAM_DISPLAY_VERSION, "1.0.2")
         self.assertEqual(identity.JERKGRAM_TECHNICAL_VERSION, "1.0.2")
 
     def test_canonical_chain_restores_telemetry_v2_1_after_release_identity(self):
-        hook = load(REPO / "scripts/install_jerkgram_v12w_build133_probe_hook.py", "hook134")
+        hook = load(REPO / "scripts/install_jerkgram_v12w_build133_probe_hook.py", "hook140")
         apply_name = "apply_jerkgram_v12y_build133_telemetry2.py"
         verify_name = "verify_jerkgram_v12y_build133_telemetry2.py"
         self.assertIn(apply_name, hook.SOURCE_ORDERED)
@@ -42,7 +42,7 @@ class Build138ReleaseContract(unittest.TestCase):
             hook.SOURCE_ORDERED.index("apply_jerkgram_v12x_build133_release_ui1.py"),
         )
 
-    def test_workflow_publishes_build138_artifact(self):
+    def test_workflow_keeps_historical_artifact_path_but_publishes_build140_identity(self):
         workflow = (REPO / ".github/workflows/build.yml").read_text(encoding="utf-8")
         self.assertIn("name: Jerkgram 12.9.2 Build138", workflow)
         self.assertIn("name: Jerkgram-Build138", workflow)
@@ -50,6 +50,8 @@ class Build138ReleaseContract(unittest.TestCase):
         self.assertNotIn("Beta", workflow)
 
         publisher = (REPO / "scripts/jerkgram_publish_build138_artifact.py").read_text(encoding="utf-8")
+        self.assertIn('base.EXPECTED_BUILD = "140"', publisher)
+        self.assertIn('Build=140', publisher)
         self.assertIn('JerkgramVersion=1.0.2\\n', publisher)
         self.assertIn('JerkgramTechnicalVersion=1.0.2\\n', publisher)
         self.assertNotIn("Beta", publisher)
@@ -57,7 +59,7 @@ class Build138ReleaseContract(unittest.TestCase):
         self.assertIn("tests.test_jerkgram_build134_release_contract", workflow)
 
     def test_finalizer_rebases_main_and_all_extension_bundle_identifiers(self):
-        identity = load(REPO / "scripts/jerkgram_finalize_build133_identity.py", "identity134_rebase")
+        identity = load(REPO / "scripts/jerkgram_finalize_build133_identity.py", "identity140_rebase")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             app = root / "Payload/Telegram.app"
@@ -82,8 +84,8 @@ class Build138ReleaseContract(unittest.TestCase):
                         "com.jerkgram.ios." + suffix,
                     )
 
-    def test_final_verifier_accepts_only_complete_build138_namespace(self):
-        verifier = load(REPO / "scripts/verify_jerkgram_v12w_build133_final_ipa.py", "verify_identity134")
+    def test_final_verifier_accepts_only_complete_build140_namespace(self):
+        verifier = load(REPO / "scripts/verify_jerkgram_v12w_build133_final_ipa.py", "verify_identity140")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             app = root / "Payload/Telegram.app"
@@ -92,27 +94,30 @@ class Build138ReleaseContract(unittest.TestCase):
             (app / "Info.plist").write_bytes(plistlib.dumps({
                 "CFBundleIdentifier": "com.jerkgram.ios",
                 "CFBundleShortVersionString": "12.9.2",
-                "CFBundleVersion": "138",
+                "CFBundleVersion": "140",
                 "CFBundleDisplayName": "Jerkgram",
                 "CFBundleName": "Jerkgram",
+                "CFBundleURLTypes": [
+                    {"CFBundleURLSchemes": ["jerkgram", "telegram", "tg"]},
+                ],
             }))
             for name, suffix in verifier.EXTENSION_SUFFIXES.items():
                 extension = plugins / name
                 extension.mkdir()
                 (extension / "Info.plist").write_bytes(plistlib.dumps({
                     "CFBundleIdentifier": "com.jerkgram.ios." + suffix,
-                    "CFBundleVersion": "138",
+                    "CFBundleVersion": "140",
                 }))
-            ipa = root / "Build138.ipa"
+            ipa = root / "Build140.ipa"
             with zipfile.ZipFile(ipa, "w") as archive:
                 for path in (root / "Payload").rglob("*"):
                     if path.is_file():
                         archive.write(path, path.relative_to(root))
 
-            verifier.verify_build133_identity(ipa)
+            verifier.verify_build140_identity(ipa)
 
     def test_probe_hook_upgrades_an_existing_build133_block_to_v2_1(self):
-        hook = load(REPO / "scripts/install_jerkgram_v12w_build133_probe_hook.py", "hook134_upgrade")
+        hook = load(REPO / "scripts/install_jerkgram_v12w_build133_probe_hook.py", "hook140_upgrade")
         old_order = [name for name in hook.SOURCE_ORDERED if "telemetry2" not in name]
         fixture = (
             hook.BUILD130_SOURCE_ANCHOR
