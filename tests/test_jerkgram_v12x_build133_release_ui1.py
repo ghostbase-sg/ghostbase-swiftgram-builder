@@ -159,11 +159,11 @@ class Build133ReleaseUIContractTests(unittest.TestCase):
         self.assertNotIn('build = "138"', updated)
         self.assertEqual(updated, module.patch_strings_text(updated))
 
-    def test_final_ipa_contract_keeps_last_good_public_telegram_identity(self):
+    def test_final_ipa_contract_keeps_public_telegram_identity_and_build140(self):
         source = FINAL_VERIFY.read_text(encoding="utf-8")
         self.assertIn('EXPECTED_BUNDLE = "com.jerkgram.ios"', source)
         self.assertIn('EXPECTED_TELEGRAM_VERSION = "12.9.2"', source)
-        self.assertIn('EXPECTED_BUILD = "138"', source)
+        self.assertIn('EXPECTED_BUILD = "140"', source)
         self.assertIn('EXPECTED_DISPLAY = "Jerkgram"', source)
         self.assertIn("CFBundleShortVersionString", source)
 
