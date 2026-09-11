@@ -48,13 +48,14 @@ def test_webk_pairing_patch_uses_fresh_token_and_safe_handoff(tmp_path: Path):
     assert "bytesToBase64" in patched
     assert "fixBase64String" in patched
 
-    # A tap must force Web K's existing login-token iteration immediately instead
-    # of reusing a token that may have been sitting in memory for several seconds.
+    # A tap must fetch a fresh token itself. Pairing must not depend on the hidden
+    # QR renderer having already painted a token or loaded qr-code-styling.
     assert "async function connectWithJerkgram()" in patched
     assert "let freshToken: Uint8Array | number[] | undefined" in patched
     assert "onJerkgramToken?: (token: Uint8Array | number[]) => void" in patched
     assert "onJerkgramToken?.(loginToken.token)" in patched
-    assert "await iterate(QRCodeStylingCtor, false, (token) =>" in patched
+    assert "if(!lastDrawnToken || !QRCodeStylingCtor)" not in patched
+    assert "await iterate(undefined, false, (token) =>" in patched
     assert "freshToken = token" in patched
     assert "bytesToBase64(freshToken)" in patched
     assert "bytesToBase64(lastDrawnToken)" not in patched
