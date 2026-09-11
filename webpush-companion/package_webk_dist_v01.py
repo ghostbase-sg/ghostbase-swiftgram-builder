@@ -20,7 +20,8 @@ PUBLIC_ALLOWLIST = {
     "site_apple.webmanifest",
     "open.html",
     "handoff.js",
-    "push-open-bootstrap.js",
+    "tap-fallback.js",
+    "push-tap-resolver.js",
     "assets/img/apple-touch-icon.png",
     "assets/img/favicon-16x16.png",
     "assets/img/favicon-32x32.png",
@@ -125,7 +126,8 @@ required = [
     DIST / "site_apple.webmanifest",
     DIST / "open.html",
     DIST / "handoff.js",
-    DIST / "push-open-bootstrap.js",
+    DIST / "tap-fallback.js",
+    DIST / "push-tap-resolver.js",
     DIST / "assets/img/apple-touch-icon.png",
     DIST / "assets/img/logo_filled_rounded.png",
     DIST / "assets/img/logo_plain.svg",
@@ -139,6 +141,7 @@ for forbidden in (
     DIST / "assets/emoji",
     DIST / "assets/tgs",
     DIST / "assets/audio",
+    DIST / "push-open-bootstrap.js",
 ):
     if forbidden.exists():
         raise SystemExit(f"[jerkgram-webk-package] forbidden asset escaped filter: {forbidden.relative_to(DIST)}")
