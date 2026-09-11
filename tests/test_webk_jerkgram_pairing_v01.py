@@ -19,10 +19,20 @@ def test_webk_pairing_patch_uses_fresh_token_and_safe_handoff(tmp_path: Path):
         "  let QRCodeStylingCtor: any;\n"
         "  const helpList = null;\n"
         "  async function iterate(QRCodeStyling: any, isLoop: boolean): Promise<boolean> {\n"
-        "    const loginToken: any = {_: 'auth.loginToken', token: new Uint8Array([1])};\n"
-        "    // auth.exportLoginToken / auth.importLoginToken / auth.loginTokenSuccess are owned by Web K.\n"
-        "    if(!prevToken || !bytesCmp(prevToken, loginToken.token)) {\n"
-        "      prevToken = loginToken.token;\n"
+        "    try {\n"
+        "      const loginToken: any = {_: 'auth.loginToken', token: new Uint8Array([1])};\n"
+        "      // auth.exportLoginToken / auth.importLoginToken / auth.loginTokenSuccess are owned by Web K.\n"
+        "      if(!prevToken || !bytesCmp(prevToken, loginToken.token)) {\n"
+        "        prevToken = loginToken.token;\n"
+        "      }\n"
+        "    } catch(err) {\n"
+        "      switch((err as ApiError).type) {\n"
+        "        case 'SESSION_PASSWORD_NEEDED':\n"
+        "          navigate({name: 'password'});\n"
+        "          stopped = true;\n"
+        "          break;\n"
+        "      }\n"
+        "      return true;\n"
         "    }\n"
         "    return false;\n"
         "  }\n"
@@ -60,6 +70,15 @@ def test_webk_pairing_patch_uses_fresh_token_and_safe_handoff(tmp_path: Path):
     assert "bytesToBase64(freshToken)" in patched
     assert "bytesToBase64(lastDrawnToken)" not in patched
 
+    # Pairing must happen inside the installed Home Screen web app. Safari and the
+    # web app do not share the durable Web K session store, so Safari must fail
+    # closed before generating or handing off a Telegram login token.
+    assert "function isJerkgramStandalone(): boolean" in patched
+    assert "matchMedia('(display-mode: standalone)')" in patched
+    assert "navigatorWithStandalone.standalone === true" in patched
+    assert "if(!isJerkgramStandalone())" in patched
+    assert "Add Jerkgram Notifications to the Home Screen first." in patched
+
     # The foreground handoff credential is a local byte reference and is dropped
     # immediately after Base64URL conversion. Stock Web K may keep its own QR token
     # in memory for polling, but pairing must never persist or log its local token.
@@ -70,12 +89,20 @@ def test_webk_pairing_patch_uses_fresh_token_and_safe_handoff(tmp_path: Path):
     assert "console.log(token" not in patched
     assert "console.error(token" not in patched
 
-    # The companion needs user-facing retry states without exposing Telegram RPC text.
-    assert "Jerkgram could not be opened." in patched
+    # Do not claim the custom-scheme open failed based on a Safari/PWA visibility
+    # timer. Native approval and Web K auth state are the real sources of truth.
+    assert "Approve in Jerkgram, then return here" in patched
+    assert "Jerkgram could not be opened." not in patched
+    assert "openTimer" not in patched
+    assert "window.setTimeout" not in patched
+
+    # Preserve stock Web K's 2FA continuation. After native acceptLoginToken,
+    # SESSION_PASSWORD_NEEDED must still route into PasswordCard.
+    assert "case 'SESSION_PASSWORD_NEEDED':" in patched
+    assert "navigate({name: 'password'});" in patched
+
     assert "Connection request expired. Try again." in patched
     assert "Could not connect to Telegram. Try again." in patched
-    assert "visibilitychange" in patched
-
     assert patched.count("Jerkgram Push Companion one-tap pairing") == 1
     assert patched.count("Jerkgram Push Companion primary pairing action") == 1
 
