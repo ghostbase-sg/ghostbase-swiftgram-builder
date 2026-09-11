@@ -18,7 +18,8 @@ def test_companion_packaging_is_notification_only(tmp_path: Path):
     (public / "site_apple.webmanifest").write_text("{}")
     (public / "open.html").write_text("open")
     (public / "handoff.js").write_text("handoff")
-    (public / "push-open-bootstrap.js").write_text("bootstrap")
+    (public / "tap-fallback.js").write_text("tap fallback")
+    (public / "push-tap-resolver.js").write_text("tap resolver")
     for name in (
         "apple-touch-icon.png",
         "favicon-16x16.png",
@@ -39,6 +40,7 @@ def test_companion_packaging_is_notification_only(tmp_path: Path):
     (public / "assets/emoji/emoji.png").write_bytes(b"drop")
     (public / "assets/tgs/animation.tgs").write_bytes(b"drop")
     (public / "assets/audio/sound.mp3").write_bytes(b"drop")
+    (public / "push-open-bootstrap.js").write_text("legacy drop")
     (public / "STALE-BUNDLE.js").write_text("drop")
     (dist / "app-123.js").write_text("keep built runtime")
     (dist / "app-123.js.map").write_text("drop map")
@@ -74,7 +76,9 @@ def test_companion_packaging_is_notification_only(tmp_path: Path):
     assert (dist / "site_apple.webmanifest").exists()
     assert (dist / "open.html").exists()
     assert (dist / "handoff.js").exists()
-    assert (dist / "push-open-bootstrap.js").exists()
+    assert (dist / "tap-fallback.js").exists()
+    assert (dist / "push-tap-resolver.js").exists()
+    assert not (dist / "push-open-bootstrap.js").exists()
     assert (dist / "assets/img/apple-touch-icon.png").exists()
     assert (dist / "assets/img/logo_filled_rounded.png").exists()
     assert (dist / "assets/img/logo_plain.svg").exists()
@@ -88,8 +92,6 @@ def test_companion_packaging_is_notification_only(tmp_path: Path):
     assert not (dist / "STALE-BUNDLE.js").exists()
 
     # Keep only the two inert DOM roots that stock Web K's startup expects.
-    # The actual chat list/search/sidebars/stories surface must not ship in the
-    # Jerkgram Notifications deployable HTML.
     html = (dist / "index.html").read_text()
     assert 'id="page-chats"' in html
     assert 'id="main-columns"' in html
