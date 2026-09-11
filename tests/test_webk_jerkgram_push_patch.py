@@ -96,8 +96,15 @@ def test_webk_push_patch(tmp_path: Path):
     assert "JSON.stringify({id, url: nativeUrl, expiresAt})" in patched
 
     html = (root / "index.html").read_text()
-    assert '<script type="module" src="./push-tap-resolver.js"></script>' in html
+    assert '<script src="./push-tap-resolver.js"></script>' in html
+    assert 'type="module" src="./push-tap-resolver.js"' not in html
     assert "push-open-bootstrap.js" not in html
+
+    # The resolver is a public classic script so Vite does not attempt to bundle
+    # it from the project root. It loads the public helper lazily at runtime.
+    resolver = (root / "public/push-tap-resolver.js").read_text()
+    assert "import('./tap-fallback.js')" in resolver
+    assert not resolver.lstrip().startswith("import {")
 
     # Visible notification presentation remains independent of tap routing.
     assert "buildJerkgramPushPresentation" in patched
