@@ -42,7 +42,17 @@ def test_webk_push_patch(tmp_path: Path):
         "    title = 'Telegram';\n"
         "    body = lang.push_message_nopreview;\n"
         "    tag = 'unknown_peer';\n"
-        "  }\n"
+        "  }\n\n"
+        "  const notificationOptions: NotificationOptions = {\n"
+        "    body,\n"
+        "    icon: NOTIFICATION_ICON_PATH,\n"
+        "    tag,\n"
+        "    data: obj,\n"
+        "    actions: [],\n"
+        "    badge: NOTIFICATION_BADGE_PATH,\n"
+        "    silent: obj.custom.silent === '1'\n"
+        "  };\n\n"
+        "  return ctx.registration.showNotification(title, notificationOptions);\n"
         "}\n"
     )
 
@@ -69,6 +79,14 @@ def test_webk_push_patch(tmp_path: Path):
     assert "ctx.clients.openWindow(handoffUrl)" in patched
     assert (root / "public/push-open-bootstrap.js").exists()
     assert '<script src="./push-open-bootstrap.js"></script>' in (root / "index.html").read_text()
+
+    # Safari/iOS 18.4+ supports NotificationOptions.navigate. Using it avoids
+    # depending on notificationclick, which WebKit can fail to dispatch when a
+    # Home Screen PWA has no live page. The target remains same-origin open.html;
+    # that page performs the validated jerkgram:// native handoff.
+    assert "const jerkgramNavigateUrl = buildJerkgramLandingUrl(ctx.registration.scope, obj);" in patched
+    assert "notificationOptions as NotificationOptions & {navigate?: string}" in patched
+    assert ".navigate = jerkgramNavigateUrl;" in patched
 
     # The standalone PWA may still be launched at start_url. In that case the
     # service worker must consume the pending handoff during the navigation
@@ -98,5 +116,6 @@ def test_webk_push_patch(tmp_path: Path):
     patched2 = target.read_text()
     assert patched2.count("Jerkgram: default notification taps") == 1
     assert patched2.count("const jerkgramPresentation = buildJerkgramPushPresentation(obj);") == 1
+    assert patched2.count("const jerkgramNavigateUrl = buildJerkgramLandingUrl(ctx.registration.scope, obj);") == 1
     assert (root / "index.html").read_text().count("push-open-bootstrap.js") == 1
     assert service_index.read_text().count("tryJerkgramPendingNavigation") >= 1
