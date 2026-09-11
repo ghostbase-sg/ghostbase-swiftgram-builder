@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './webpush_tap_fallback_test.mjs';
 import {
   buildJerkgramHandoffData,
   buildJerkgramLandingUrl,
