@@ -8,6 +8,7 @@ def test_webk_push_patch(tmp_path: Path):
     target = root / "src/lib/serviceWorker/push.ts"
     target.parent.mkdir(parents=True)
     (root / "public").mkdir()
+    (root / "index.html").write_text("<html><head></head><body></body></html>")
     target.write_text(
         "import {getWindowClients} from '@helpers/context';\n\n"
         "function onNotificationClick(event: NotificationEvent) {\n"
@@ -60,6 +61,7 @@ def test_webk_push_patch(tmp_path: Path):
     assert ".navigate(handoffUrl)" in patched
     assert "ctx.clients.openWindow(handoffUrl)" in patched
     assert (root / "public/push-open-bootstrap.js").exists()
+    assert '<script src="./push-open-bootstrap.js"></script>' in (root / "index.html").read_text()
 
     # Visible notification presentation must use Telegram's loc_key/loc_args data
     # so private messages show sender + real message text instead of generic
@@ -77,3 +79,4 @@ def test_webk_push_patch(tmp_path: Path):
     patched2 = target.read_text()
     assert patched2.count("Jerkgram: default notification taps") == 1
     assert patched2.count("const jerkgramPresentation = buildJerkgramPushPresentation(obj);") == 1
+    assert (root / "index.html").read_text().count("push-open-bootstrap.js") == 1
