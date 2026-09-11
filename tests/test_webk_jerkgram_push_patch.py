@@ -19,6 +19,22 @@ def test_webk_push_patch(tmp_path: Path):
         "    return;\n"
         "  }\n"
         "  EXISTING_WEBK_HANDLER();\n"
+        "}\n\n"
+        "function fireNotification(\n"
+        "  obj: PushNotificationObject,\n"
+        "  settings: PushStorage['push_settings'],\n"
+        "  lang: PushStorage['push_lang']\n"
+        ") {\n"
+        "  obj = fillPushObject(obj);\n"
+        "  const peerId = obj.custom.peerId;\n"
+        "  let title = obj.title || 'Telegram';\n"
+        "  let body = obj.description || '';\n"
+        "  let tag = 'peer' + peerId;\n\n"
+        "  if(settings?.nopreview || !obj.loc_key) {\n"
+        "    title = 'Telegram';\n"
+        "    body = lang.push_message_nopreview;\n"
+        "    tag = 'unknown_peer';\n"
+        "  }\n"
         "}\n"
     )
 
@@ -35,8 +51,19 @@ def test_webk_push_patch(tmp_path: Path):
     assert (root / "public/handoff.js").exists()
     assert (root / "public/open.html").exists()
 
-    # Idempotent: a second patch must not duplicate the injected branch.
+    # Visible notification presentation must use Telegram's loc_key/loc_args data
+    # so private messages show sender + real message text instead of generic
+    # "Telegram / sent you a message". Privacy/no-preview fallback stays stock.
+    assert "buildJerkgramPushPresentation" in patched
+    assert "const jerkgramPresentation = buildJerkgramPushPresentation(obj);" in patched
+    assert "title = jerkgramPresentation.title;" in patched
+    assert "body = jerkgramPresentation.body;" in patched
+    assert "if(settings?.nopreview || !obj.loc_key)" in patched
+    assert (root / "src/lib/serviceWorker/jerkgramPushPresentation.ts").exists()
+
+    # Idempotent: a second patch must not duplicate the injected branches.
     result2 = subprocess.run([sys.executable, str(patcher), str(root)], capture_output=True, text=True)
     assert result2.returncode == 0, result2.stderr + result2.stdout
     patched2 = target.read_text()
     assert patched2.count("Jerkgram: default notification taps") == 1
+    assert patched2.count("const jerkgramPresentation = buildJerkgramPushPresentation(obj);") == 1
