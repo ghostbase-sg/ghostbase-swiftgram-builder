@@ -31,7 +31,7 @@
       button.hidden = true;
       fallback.style.visibility = 'visible';
     } else {
-      const openNative = () => { window.location.replace(nativeUrl); };
+      const openNative = () => { window.location.href = nativeUrl; };
       button.addEventListener('click', openNative);
       openNative();
       window.setTimeout(() => {
