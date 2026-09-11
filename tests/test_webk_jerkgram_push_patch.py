@@ -6,9 +6,16 @@ import sys
 def test_webk_push_patch(tmp_path: Path):
     root = tmp_path / "tweb"
     target = root / "src/lib/serviceWorker/push.ts"
+    service_index = root / "src/lib/serviceWorker/index.service.ts"
     target.parent.mkdir(parents=True)
     (root / "public").mkdir()
     (root / "index.html").write_text("<html><head></head><body></body></html>")
+    service_index.write_text(
+        "const ctx = self as any as ServiceWorkerGlobalScope;\n"
+        "const onFetch = (event: FetchEvent): void => {\n"
+        "  EXISTING_FETCH_HANDLER();\n"
+        "};\n"
+    )
     target.write_text(
         "import {getWindowClients} from '@helpers/context';\n\n"
         "function onNotificationClick(event: NotificationEvent) {\n"
@@ -63,6 +70,18 @@ def test_webk_push_patch(tmp_path: Path):
     assert (root / "public/push-open-bootstrap.js").exists()
     assert '<script src="./push-open-bootstrap.js"></script>' in (root / "index.html").read_text()
 
+    # The standalone PWA may still be launched at start_url. In that case the
+    # service worker must consume the pending handoff during the navigation
+    # request and return a tiny synchronous redirect document. This avoids the
+    # async CacheStorage -> custom-scheme jump that iOS can silently block.
+    patched_service_index = service_index.read_text()
+    assert "tryJerkgramPendingNavigation" in patched_service_index
+    assert "event.request.mode !== 'navigate'" in patched_service_index
+    assert "jerkgram-push-handoff-v1" in patched_service_index
+    assert "window.location.replace" in patched_service_index
+    assert "event.respondWith(tryJerkgramPendingNavigation(event))" in patched_service_index
+    assert "EXISTING_FETCH_HANDLER();" in patched_service_index
+
     # Visible notification presentation must use Telegram's loc_key/loc_args data
     # so private messages show sender + real message text instead of generic
     # "Telegram / sent you a message". Privacy/no-preview fallback stays stock.
@@ -80,3 +99,4 @@ def test_webk_push_patch(tmp_path: Path):
     assert patched2.count("Jerkgram: default notification taps") == 1
     assert patched2.count("const jerkgramPresentation = buildJerkgramPushPresentation(obj);") == 1
     assert (root / "index.html").read_text().count("push-open-bootstrap.js") == 1
+    assert service_index.read_text().count("tryJerkgramPendingNavigation") >= 1
