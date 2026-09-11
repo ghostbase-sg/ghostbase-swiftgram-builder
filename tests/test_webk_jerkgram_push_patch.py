@@ -110,8 +110,8 @@ def test_webk_push_patch(tmp_path: Path):
     # The installed registration already owns the live Web Push notifications;
     # getRegistration() can return it without waiting for the root PWA to become
     # controlled, which is the slow step observed on real iOS cold launches.
-    assert "navigator.serviceWorker.getRegistration()" in resolver
-    assert "navigator.serviceWorker.ready" not in resolver
+    assert "const registration = await navigator.serviceWorker.getRegistration();" in resolver
+    assert "const registration = await navigator.serviceWorker.ready;" not in resolver
 
     # Visible notification presentation remains independent of tap routing.
     assert "buildJerkgramPushPresentation" in patched
