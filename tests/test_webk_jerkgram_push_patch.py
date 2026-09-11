@@ -10,12 +10,13 @@ def test_webk_push_patch(tmp_path: Path):
     target.parent.mkdir(parents=True)
     (root / "public").mkdir()
     (root / "index.html").write_text("<html><head></head><body></body></html>")
-    service_index.write_text(
+    service_original = (
         "const ctx = self as any as ServiceWorkerGlobalScope;\n"
         "const onFetch = (event: FetchEvent): void => {\n"
         "  EXISTING_FETCH_HANDLER();\n"
         "};\n"
     )
+    service_index.write_text(service_original)
     target.write_text(
         "import {getWindowClients} from '@helpers/context';\n\n"
         "function onNotificationClick(event: NotificationEvent) {\n"
@@ -65,57 +66,52 @@ def test_webk_push_patch(tmp_path: Path):
     assert "EXISTING_WEBK_HANDLER();" in patched
     assert patched.count("Jerkgram: default notification taps") == 1
     assert (root / "src/lib/serviceWorker/jerkgramPushHandoff.ts").exists()
+    assert (root / "src/lib/serviceWorker/jerkgramPushPresentation.ts").exists()
+    assert (root / "src/lib/serviceWorker/jerkgramTapFallback.ts").exists()
     assert (root / "public/handoff.js").exists()
+    assert (root / "public/tap-fallback.js").exists()
     assert (root / "public/open.html").exists()
+    assert (root / "public/push-tap-resolver.js").exists()
 
-    # iOS/WebKit can cold-launch a Home Screen PWA at its start_url instead of
-    # the URL passed to clients.openWindow(). Persist the native handoff and
-    # actively navigate an existing client so notification taps cannot strand
-    # the user on the companion root screen.
-    assert "jerkgram-push-handoff-v1" in patched
-    assert "buildJerkgramNativeUrlFromPush" in patched
-    assert "ctx.clients.matchAll({type: 'window', includeUncontrolled: true})" in patched
-    assert ".navigate(handoffUrl)" in patched
-    assert "ctx.clients.openWindow(handoffUrl)" in patched
-    assert (root / "public/push-open-bootstrap.js").exists()
-    assert '<script src="./push-open-bootstrap.js"></script>' in (root / "index.html").read_text()
+    # Restore the first real-device-proven click path: notificationclick opens
+    # same-origin open.html directly; open.html performs the custom-scheme jump.
+    assert "event.waitUntil(ctx.clients.openWindow(handoffUrl));" in patched
+    assert "ctx.clients.matchAll({type: 'window', includeUncontrolled: true})" not in patched
+    assert ".navigate(handoffUrl)" not in patched
+    assert "jerkgramNavigateUrl" not in patched
+    assert "NotificationOptions & {navigate?: string}" not in patched
 
-    # Safari/iOS 18.4+ supports NotificationOptions.navigate. Using it avoids
-    # depending on notificationclick, which WebKit can fail to dispatch when a
-    # Home Screen PWA has no live page. The target remains same-origin open.html;
-    # that page performs the validated jerkgram:// native handoff.
-    assert "const jerkgramNavigateUrl = buildJerkgramLandingUrl(ctx.registration.scope, obj);" in patched
-    assert "notificationOptions as NotificationOptions & {navigate?: string}" in patched
-    assert ".navigate = jerkgramNavigateUrl;" in patched
+    # Do not intercept Web K navigation requests anymore. That later workaround
+    # was introduced after the working build and regressed real-device taps.
+    assert service_index.read_text() == service_original
+    assert "tryJerkgramPendingNavigation" not in service_index.read_text()
 
-    # The standalone PWA may still be launched at start_url. In that case the
-    # service worker must consume the pending handoff during the navigation
-    # request and return a tiny synchronous redirect document. This avoids the
-    # async CacheStorage -> custom-scheme jump that iOS can silently block.
-    patched_service_index = service_index.read_text()
-    assert "tryJerkgramPendingNavigation" in patched_service_index
-    assert "event.request.mode !== 'navigate'" in patched_service_index
-    assert "jerkgram-push-handoff-v1" in patched_service_index
-    assert "window.location.href" in patched_service_index
-    assert "event.respondWith(tryJerkgramPendingNavigation(event))" in patched_service_index
-    assert "EXISTING_FETCH_HANDLER();" in patched_service_index
+    # After a notification is shown, persist only routing metadata and a snapshot
+    # of live notification identities for the root-screen WebKit fallback.
+    assert "persistJerkgramTapState" in patched
+    assert "jerkgram-push-tap-v1" in patched
+    assert "ctx.registration.getNotifications()" in patched
+    assert "buildJerkgramTapIdentity" in patched
+    assert "normalizeJerkgramOpenUrl" in patched
+    assert "JSON.stringify({id, url: nativeUrl, expiresAt})" in patched
 
-    # Visible notification presentation must use Telegram's loc_key/loc_args data
-    # so private messages show sender + real message text instead of generic
-    # "Telegram / sent you a message". Privacy/no-preview fallback stays stock.
+    html = (root / "index.html").read_text()
+    assert '<script type="module" src="./push-tap-resolver.js"></script>' in html
+    assert "push-open-bootstrap.js" not in html
+
+    # Visible notification presentation remains independent of tap routing.
     assert "buildJerkgramPushPresentation" in patched
     assert "const jerkgramPresentation = buildJerkgramPushPresentation(obj);" in patched
     assert "title = jerkgramPresentation.title;" in patched
     assert "body = jerkgramPresentation.body;" in patched
     assert "if(settings?.nopreview || !obj.loc_key)" in patched
-    assert (root / "src/lib/serviceWorker/jerkgramPushPresentation.ts").exists()
 
-    # Idempotent: a second patch must not duplicate the injected branches.
+    # Idempotent: a second patch must not duplicate branches or scripts.
     result2 = subprocess.run([sys.executable, str(patcher), str(root)], capture_output=True, text=True)
     assert result2.returncode == 0, result2.stderr + result2.stdout
     patched2 = target.read_text()
     assert patched2.count("Jerkgram: default notification taps") == 1
     assert patched2.count("const jerkgramPresentation = buildJerkgramPushPresentation(obj);") == 1
-    assert patched2.count("const jerkgramNavigateUrl = buildJerkgramLandingUrl(ctx.registration.scope, obj);") == 1
-    assert (root / "index.html").read_text().count("push-open-bootstrap.js") == 1
-    assert service_index.read_text().count("tryJerkgramPendingNavigation") >= 1
+    assert patched2.count("persistJerkgramTapState") >= 1
+    assert (root / "index.html").read_text().count("push-tap-resolver.js") == 1
+    assert service_index.read_text() == service_original
