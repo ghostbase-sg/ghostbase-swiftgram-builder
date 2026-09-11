@@ -15,25 +15,37 @@ for path in (MOUNT_AUTH, SIGN_QR, BOOTSTRAP_IM, APP_IM):
         raise SystemExit(f"[jerkgram-minimal-ui] missing {path}")
 
 # Fresh companion installations enter Web K's existing QR/login-token flow directly,
-# never the phone-number card.
+# never the phone-number card. Preserve the stock password state because Telegram
+# can require 2FA after the native client approves a login token.
 auth = MOUNT_AUTH.read_text()
 old_auth = "case 'authStateSignIn':\n      return {name: 'signIn'};"
 new_auth = "case 'authStateSignIn':\n      return {name: 'signQR'};"
+password_auth = "case 'authStatePassword':\n      return {name: 'password'};"
+if password_auth not in auth:
+    raise SystemExit("[jerkgram-minimal-ui] stock authStatePassword route missing")
 if new_auth not in auth:
     if auth.count(old_auth) != 1:
         raise SystemExit(f"[jerkgram-minimal-ui] expected one authStateSignIn anchor, found {auth.count(old_auth)}")
     auth = auth.replace(old_auth, new_auth, 1)
+if password_auth not in auth:
+    raise SystemExit("[jerkgram-minimal-ui] authStatePassword route lost after patch")
 MOUNT_AUTH.write_text(auth)
 
 # The pairing patch must already have run. This layer is presentation-only: keep
-# Web K's existing export/migrate/import/success loop intact and replace only the
-# visible QR-oriented return block. The QR host remains hidden because Web K still
-# owns token rotation and paintQR uses that host as part of its normal lifecycle.
+# Web K's existing export/migrate/import/success/password loop intact and replace
+# only the visible QR-oriented return block. The QR host remains hidden because
+# Web K still owns token rotation and paintQR uses that host as part of its normal
+# lifecycle.
 qr = SIGN_QR.read_text()
 for prerequisite in (
     "auth.exportLoginToken",
+    "auth.importLoginToken",
+    "auth.loginTokenSuccess",
+    "SESSION_PASSWORD_NEEDED",
+    "navigate({name: 'password'})",
     "jerkgram://push/authorize",
     "toIm()",
+    "function isJerkgramStandalone(): boolean",
     "Jerkgram Push Companion primary pairing action",
 ):
     if prerequisite not in qr:
@@ -67,11 +79,16 @@ if minimal_marker not in qr:
       <Button
         primaryFilled
         large
-        disabled={pairingBusy()}
+        disabled={!isJerkgramStandalone() || pairingBusy()}
         onClick={connectWithJerkgram}
       >
         {pairingBusy() ? 'Opening Jerkgram…' : 'Connect with Jerkgram'}
       </Button>
+      {!isJerkgramStandalone() && (
+        <p class="secondary" style={{'text-align': 'center', 'font-size': '13px', margin: '12px 8px 0'}}>
+          Add Jerkgram Notifications to the Home Screen first. Open it from the Home Screen to connect.
+        </p>
+      )}
       {pairingStatus() && (
         <p class="secondary" style={{'text-align': 'center', 'font-size': '13px', margin: '12px 8px 0'}}>
           {pairingStatus()}
@@ -90,7 +107,12 @@ for invariant in (
     "auth.exportLoginToken",
     "auth.importLoginToken",
     "auth.loginTokenSuccess",
+    "SESSION_PASSWORD_NEEDED",
+    "navigate({name: 'password'})",
     "jerkgram://push/authorize",
+    "disabled={!isJerkgramStandalone() || pairingBusy()}",
+    "Add Jerkgram Notifications to the Home Screen first.",
+    "Open it from the Home Screen to connect.",
     minimal_marker,
 ):
     if invariant not in qr:
