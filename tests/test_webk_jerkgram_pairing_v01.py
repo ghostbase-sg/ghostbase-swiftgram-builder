@@ -101,6 +101,19 @@ def test_webk_pairing_patch_uses_fresh_token_and_safe_handoff(tmp_path: Path):
     assert "case 'SESSION_PASSWORD_NEEDED':" in patched
     assert "navigate({name: 'password'});" in patched
 
+    # iOS may suspend the normal QR polling loop while Jerkgram is foregrounded.
+    # Returning to the standalone PWA must force one immediate auth probe instead
+    # of waiting for a suspended timer. The probe must reuse Web K's iterate path
+    # so loginTokenSuccess and SESSION_PASSWORD_NEEDED stay stock-owned.
+    assert "async function resumeJerkgramPairing()" in patched
+    assert "await iterate(undefined, false);" in patched
+    assert "document.addEventListener('visibilitychange', onJerkgramVisibilityChange)" in patched
+    assert "window.addEventListener('pageshow', onJerkgramPageShow)" in patched
+    assert "window.addEventListener('focus', onJerkgramFocus)" in patched
+    assert "document.removeEventListener('visibilitychange', onJerkgramVisibilityChange)" in patched
+    assert "window.removeEventListener('pageshow', onJerkgramPageShow)" in patched
+    assert "window.removeEventListener('focus', onJerkgramFocus)" in patched
+
     assert "Connection request expired. Try again." in patched
     assert "Could not connect to Telegram. Try again." in patched
     assert patched.count("Jerkgram Push Companion one-tap pairing") == 1
