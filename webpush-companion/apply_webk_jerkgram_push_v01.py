@@ -56,6 +56,29 @@ if presentation_marker not in source:
         raise SystemExit("[jerkgram-webk] notification presentation anchor not found")
     source = source.replace(presentation_anchor, presentation_injection, 1)
 
+# Safari/iOS 18.4+ supports NotificationOptions.navigate. This is more reliable
+# than notificationclick for a cold Home Screen PWA because WebKit can sometimes
+# foreground start_url without dispatching notificationclick at all. Point the
+# notification at our same-origin landing page; open.html then performs the
+# validated jerkgram://push/open handoff synchronously.
+navigate_marker = "const jerkgramNavigateUrl = buildJerkgramLandingUrl(ctx.registration.scope, obj);"
+if navigate_marker not in source:
+    options_anchor = "  const notificationOptions: NotificationOptions = {"
+    options_start = source.find(options_anchor)
+    if options_start == -1:
+        raise SystemExit("[jerkgram-webk] notification options anchor not found")
+    options_end = source.find("\n  };", options_start)
+    if options_end == -1:
+        raise SystemExit("[jerkgram-webk] notification options end not found")
+    options_end += len("\n  };")
+    navigate_injection = """
+
+  const jerkgramNavigateUrl = buildJerkgramLandingUrl(ctx.registration.scope, obj);
+  if(jerkgramNavigateUrl) {
+    (notificationOptions as NotificationOptions & {navigate?: string}).navigate = jerkgramNavigateUrl;
+  }"""
+    source = source[:options_end] + navigate_injection + source[options_end:]
+
 for invariant in (
     import_handoff,
     import_presentation,
@@ -65,6 +88,9 @@ for invariant in (
     "ctx.clients.matchAll({type: 'window', includeUncontrolled: true})",
     ".navigate(handoffUrl)",
     "ctx.clients.openWindow(handoffUrl)",
+    navigate_marker,
+    "notificationOptions as NotificationOptions & {navigate?: string}",
+    ".navigate = jerkgramNavigateUrl;",
     presentation_marker,
     "title = jerkgramPresentation.title;",
     "body = jerkgramPresentation.body;",
