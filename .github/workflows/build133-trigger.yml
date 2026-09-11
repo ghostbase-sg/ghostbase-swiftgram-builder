@@ -31,7 +31,10 @@ jobs:
             scripts/jerkgram_publish_build138_artifact.py
           python3 -m unittest \
             tests.test_jerkgram_push_external_url_routing_v01 \
-            tests.test_jerkgram_build140_identity
+            tests.test_jerkgram_build140_identity \
+            tests.test_jerkgram_v12x_build133_release_ui1 \
+            tests.test_jerkgram_v12y_build133_telemetry2 \
+            tests.test_jerkgram_build134_release_contract
 
       - name: Dispatch canonical native workflow on this branch
         env:
