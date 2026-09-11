@@ -45,8 +45,14 @@
 
     try {
       if(!('serviceWorker' in navigator) || !('caches' in window)) return false;
-      const registration = await navigator.serviceWorker.ready;
-      if(typeof registration.getNotifications !== 'function') return false;
+
+      // Do not await navigator.serviceWorker.ready here. On a cold Home Screen
+      // launch iOS can spend several seconds making the root page controlled,
+      // while the already-installed registration and its notifications are
+      // available immediately. If registration is briefly unavailable, the
+      // existing pageshow/focus/timer retries will probe again without blocking.
+      const registration = await navigator.serviceWorker.getRegistration();
+      if(!registration || typeof registration.getNotifications !== 'function') return false;
 
       const cache = await caches.open(CACHE_NAME);
       const scope = registration.scope;
