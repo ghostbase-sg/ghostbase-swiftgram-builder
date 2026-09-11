@@ -156,7 +156,7 @@ for forbidden in (
 PUSH.write_text(source)
 
 html = INDEX.read_text()
-resolver_tag = '  <script type="module" src="./push-tap-resolver.js"></script>\n'
+resolver_tag = '  <script src="./push-tap-resolver.js"></script>\n'
 if resolver_tag not in html:
     if "</head>" not in html:
         raise SystemExit("[jerkgram-webk] index </head> anchor not found")
