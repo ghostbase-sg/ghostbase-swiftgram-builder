@@ -1,4 +1,4 @@
-name: Build139 Native Build Guard
+name: Build140 Native Build Guard
 
 on:
   workflow_dispatch:
@@ -7,14 +7,14 @@ on:
       - dev/build133-runtime-repair
 
 concurrency:
-  group: jerkgram-build139-${{ github.ref }}
+  group: jerkgram-build140-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   guard:
     runs-on: ubuntu-latest
     steps:
-      - name: Use existing native build pipeline
+      - name: Use canonical native build pipeline
         run: |
-          echo "The existing Build138 Integration Trigger dispatches the proven main build.yml on this branch."
+          echo "Build140 Integration Trigger dispatches the proven main build.yml on this branch after preflight."
           echo "This guard intentionally performs no second iOS/Bazel build."

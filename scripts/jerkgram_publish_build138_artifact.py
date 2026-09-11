@@ -7,7 +7,10 @@ import sys
 import jerkgram_publish_build122_artifact as base
 
 
-base.EXPECTED_BUILD = "138"
+# The canonical workflow still references the historical Build138 artifact paths;
+# keep those filenames stable for CI compatibility, but verify/publish Build140
+# identity inside the IPA and metadata.
+base.EXPECTED_BUILD = "140"
 base.OUTPUT_IPA = Path("artifacts/Jerkgram-Build138.ipa")
 base.OUTPUT_INFO = Path("artifacts/Jerkgram-Build138-info.txt")
 FINAL_VERIFY = Path("scripts/verify_jerkgram_v12w_build133_final_ipa.py")
@@ -25,7 +28,7 @@ def main() -> None:
     verify(base.OUTPUT_IPA)
 
     info = base.OUTPUT_INFO.read_text(encoding="utf-8")
-    info = info.replace("Build=122", "Build=138")
+    info = info.replace("Build=122", "Build=140")
     info += (
         "BundleID=com.jerkgram.ios\n"
         "TelegramVersion=12.9.2\n"
@@ -34,7 +37,7 @@ def main() -> None:
         "TelemetryVersion=2.1\n"
     )
     base.OUTPUT_INFO.write_text(info, encoding="utf-8")
-    print("[Build138 artifact] exact stable public identity verified before and after publication")
+    print("[Build140 artifact] CFBundleVersion 140 and stable public identity verified before and after publication")
 
 
 if __name__ == "__main__":

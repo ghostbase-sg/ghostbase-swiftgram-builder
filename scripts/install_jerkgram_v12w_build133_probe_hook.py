@@ -45,6 +45,8 @@ SOURCE_ORDERED = (
     "verify_jerkgram_push_click_bridge_v01.py",
     "apply_jerkgram_push_pairing_bridge_v01.py",
     "verify_jerkgram_push_pairing_bridge_v01.py",
+    "apply_jerkgram_build140_identity.py",
+    "verify_jerkgram_build140_identity.py",
     "verify_jerkgram_v12w_build133_runtime_repair1.py",
 )
 FINAL_ORDERED = (
@@ -70,7 +72,7 @@ def patch_probe(text: str) -> str:
 
     source_payload = (
         SOURCE_MARKER
-        + '\necho\necho "== Jerkgram Build139 runtime + push bridges =="\n'
+        + '\necho\necho "== Jerkgram Build140 runtime + push bridges =="\n'
         + "\n".join(line(name) for name in SOURCE_ORDERED)
     )
     if SOURCE_MARKER not in text:
@@ -96,7 +98,7 @@ def patch_probe(text: str) -> str:
         final_block = (
             BUILD130_FINAL_ANCHOR
             + "\n\n" + FINAL_MARKER
-            + '\necho\necho "== Jerkgram Build138 final physical identity =="\n'
+            + '\necho\necho "== Jerkgram Build140 final physical identity =="\n'
             + "\n".join(line(name, "ghostbase-final/GhostBase.ipa") for name in FINAL_ORDERED)
         )
         text = text.replace(BUILD130_FINAL_ANCHOR, final_block, 1)
@@ -106,10 +108,12 @@ def patch_probe(text: str) -> str:
     require(final_positions == sorted(final_positions), "Build133 final identity order")
     require(all(text.count(name) == 1 for name in FINAL_ORDERED), "Build133 final hook count")
     require(text.index(BUILD130_FINAL_ANCHOR) < final_positions[0], "Build133 final identity must follow Build130 verification")
-    text = text.replace("== Jerkgram Build134 final identity ==", "== Jerkgram Build136 final identity ==")
-    text = text.replace("== Jerkgram Build135 final identity ==", "== Jerkgram Build136 final identity ==")
-    text = text.replace("== Jerkgram Build136 final identity ==", "== Jerkgram Build138 final identity ==")
-    text = text.replace("== Jerkgram Build137 final identity ==", "== Jerkgram Build138 final identity ==")
+    text = text.replace("== Jerkgram Build134 final identity ==", "== Jerkgram Build140 final identity ==")
+    text = text.replace("== Jerkgram Build135 final identity ==", "== Jerkgram Build140 final identity ==")
+    text = text.replace("== Jerkgram Build136 final identity ==", "== Jerkgram Build140 final identity ==")
+    text = text.replace("== Jerkgram Build137 final identity ==", "== Jerkgram Build140 final identity ==")
+    text = text.replace("== Jerkgram Build138 final identity ==", "== Jerkgram Build140 final identity ==")
+    text = text.replace("== Jerkgram Build138 final physical identity ==", "== Jerkgram Build140 final physical identity ==")
     return text
 
 
@@ -118,8 +122,8 @@ def main() -> None:
     subprocess.check_call([sys.executable, str(BASE_INSTALLER)])
     require(PROBE.is_file(), "probe missing: " + str(PROBE))
     PROBE.write_text(patch_probe(PROBE.read_text(encoding="utf-8")), encoding="utf-8")
-    print("[Build139 probe hook] GREEN")
-    print("[Build139 probe hook] Telemetry 2.1 -> reactions/activity/navigation -> Settings2 -> localization -> visible preview/unread/account runtime -> visible ordering/cache -> performance hardening -> music -> push click/pairing bridges -> final source gate -> Bazel")
+    print("[Build140 probe hook] GREEN")
+    print("[Build140 probe hook] existing Build133-139 runtime -> push click/pairing routing -> internal identity 140 -> final source gate -> Bazel -> physical identity 140")
 
 
 if __name__ == "__main__":

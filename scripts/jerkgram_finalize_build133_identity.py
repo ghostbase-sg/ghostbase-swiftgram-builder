@@ -12,7 +12,7 @@ import zipfile
 import jerkgram_finalize_build130_identity as base
 
 
-BUILD = "138"
+BUILD = "140"
 PUBLIC_BUNDLE = "com.jerkgram.ios"
 OLD_PUBLIC_BUNDLE = "ph.telegra.Telegraph"
 PUBLIC_TEAM = "C67CF9S4VU"
@@ -21,9 +21,8 @@ TELEGRAM_VERSION = "12.9.2"
 JERKGRAM_DISPLAY_VERSION = "1.0.2"
 JERKGRAM_TECHNICAL_VERSION = "1.0.2"
 
-# The last-good run 34040990849 is the release identity baseline:
-# Telegram 12.9.2 / Jerkgram display name; Build138 preserves the public bundle.
-# Keep that exact public identity and advance only Build/Jerkgram release data.
+# Build140 keeps the stable public namespace and advances the physical bundle
+# build together with the in-app/telemetry Build140 release identity.
 base.base.base.BUILD = BUILD
 
 EXTENSION_SUFFIXES = {
@@ -43,7 +42,7 @@ KEYCHAIN_EXTENSIONS = {
 
 def require(value: bool, message: str) -> None:
     if not value:
-        raise RuntimeError("[Build138 identity] " + message)
+        raise RuntimeError("[Build140 identity] " + message)
 
 
 def load_plist(path: Path):
@@ -63,7 +62,7 @@ def rewrite_bundle_identifiers(root: Path) -> list[Path]:
     app = apps[0]
     main_info_path = app / "Info.plist"
     main_info = load_plist(main_info_path)
-    require(main_info.get("CFBundleIdentifier") == OLD_PUBLIC_BUNDLE, "unexpected pre-Build134 main bundle")
+    require(main_info.get("CFBundleIdentifier") == OLD_PUBLIC_BUNDLE, "unexpected pre-Build140 main bundle")
     main_info["CFBundleIdentifier"] = PUBLIC_BUNDLE
     save_plist(main_info_path, main_info)
 
@@ -73,7 +72,7 @@ def rewrite_bundle_identifiers(root: Path) -> list[Path]:
     for name, suffix in EXTENSION_SUFFIXES.items():
         info_path = plugins[name] / "Info.plist"
         info = load_plist(info_path)
-        require(info.get("CFBundleIdentifier") == OLD_PUBLIC_BUNDLE + "." + suffix, f"unexpected pre-Build134 bundle for {name}")
+        require(info.get("CFBundleIdentifier") == OLD_PUBLIC_BUNDLE + "." + suffix, f"unexpected pre-Build140 bundle for {name}")
         info["CFBundleIdentifier"] = PUBLIC_BUNDLE + "." + suffix
         save_plist(info_path, info)
         changed.append(info_path)
@@ -99,7 +98,7 @@ def carrier_entitlements(bundle_id: str, *, main: bool, keychain: bool):
 def sign_carrier(executable: Path, entitlements, root: Path) -> None:
     codesign = shutil.which("codesign")
     require(codesign is not None, "codesign missing")
-    entitlement_path = root / (executable.name + ".build134.entitlements.plist")
+    entitlement_path = root / (executable.name + ".build140.entitlements.plist")
     entitlement_path.write_bytes(plistlib.dumps(entitlements, fmt=plistlib.FMT_XML, sort_keys=False))
     result = subprocess.run(
         [codesign, "--force", "--sign", "-", "--timestamp=none", "--generate-entitlement-der", "--entitlements", str(entitlement_path), str(executable)],
@@ -111,7 +110,7 @@ def sign_carrier(executable: Path, entitlements, root: Path) -> None:
 
 
 def rebase_ipa_namespace(ipa: Path) -> None:
-    with tempfile.TemporaryDirectory(prefix="jerkgram-build134-identity-") as directory:
+    with tempfile.TemporaryDirectory(prefix="jerkgram-build140-identity-") as directory:
         root = Path(directory)
         with zipfile.ZipFile(ipa, "r") as archive:
             infos = archive.infolist()
@@ -141,7 +140,7 @@ def rebase_ipa_namespace(ipa: Path) -> None:
             changed.add(executable)
 
         modified = {path.relative_to(root).as_posix(): path.read_bytes() for path in changed}
-        fd, temp_name = tempfile.mkstemp(prefix=ipa.name + ".build134.", suffix=".tmp", dir=str(ipa.parent))
+        fd, temp_name = tempfile.mkstemp(prefix=ipa.name + ".build140.", suffix=".tmp", dir=str(ipa.parent))
         os.close(fd)
         temp = Path(temp_name)
         try:
@@ -162,9 +161,9 @@ def main() -> None:
     ipa = Path(sys.argv[1] if len(sys.argv) > 1 else "work/swiftgram-src/ghostbase-final/GhostBase.ipa").resolve()
     base.main()
     rebase_ipa_namespace(ipa)
-    print("[Build138 identity] GREEN")
-    print("[Build138 identity] com.jerkgram.ios / CFBundleShortVersionString=12.9.2 / CFBundleVersion=138")
-    print("[Build138 identity] in-app Jerkgram release: 1.0.2")
+    print("[Build140 identity] GREEN")
+    print("[Build140 identity] com.jerkgram.ios / CFBundleShortVersionString=12.9.2 / CFBundleVersion=140")
+    print("[Build140 identity] in-app Jerkgram release: 1.0.2")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-name: Build138 Integration Trigger
+name: Build140 Integration Trigger
 
 on:
   push:
@@ -10,14 +10,32 @@ permissions:
   contents: read
 
 jobs:
-  dispatch-build138:
+  preflight-and-dispatch-build140:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch main Build138 workflow on this branch
+      - name: Checkout builder
+        uses: actions/checkout@v4
+
+      - name: Verify Build140 URL routing and identity before macOS CI
+        run: |
+          set -e
+          python3 -m py_compile \
+            scripts/apply_jerkgram_push_pairing_bridge_v01.py \
+            scripts/verify_jerkgram_push_pairing_bridge_v01.py \
+            scripts/apply_jerkgram_build140_identity.py \
+            scripts/verify_jerkgram_build140_identity.py \
+            scripts/install_jerkgram_v12w_build133_probe_hook.py \
+            scripts/verify_jerkgram_v12w_build133_runtime_repair1.py \
+            scripts/jerkgram_finalize_build133_identity.py \
+            scripts/verify_jerkgram_v12w_build133_final_ipa.py \
+            scripts/jerkgram_publish_build138_artifact.py
+          python3 -m unittest \
+            tests.test_jerkgram_push_external_url_routing_v01 \
+            tests.test_jerkgram_build140_identity
+
+      - name: Dispatch canonical native workflow on this branch
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           gh workflow run build.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
-
-# retrigger: Build138 stable 1.0.2 release

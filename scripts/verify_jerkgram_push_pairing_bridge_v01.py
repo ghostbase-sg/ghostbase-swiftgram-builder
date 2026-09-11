@@ -10,12 +10,12 @@ if not APP_DELEGATE.exists():
     errors.append(f"missing AppDelegate: {APP_DELEGATE}")
 else:
     text = APP_DELEGATE.read_text()
-    handler = "private func handleJerkgramPushPairingUrl(_ url: URL) -> Bool"
-    external_handler = "private func handleJerkgramExternalUrl(_ url: URL) -> Bool"
+    pairing_handler = "private func handleJerkgramPushPairingUrl(_ url: URL) -> Bool"
+    dispatcher = "private func handleJerkgramExternalUrl(_ url: URL) -> Bool"
 
     required = (
-        handler,
-        external_handler,
+        pairing_handler,
+        dispatcher,
         'url.scheme?.lowercased() == "jerkgram"',
         'url.host?.lowercased() == "push"',
         'url.path == "/authorize"',
@@ -41,57 +41,104 @@ else:
         if value not in text:
             errors.append(f"AppDelegate missing invariant: {value}")
 
-    if text.count(handler) != 1:
-        errors.append(f"pairing handler count={text.count(handler)}, expected 1")
-    if text.count(external_handler) != 1:
-        errors.append(f"external dispatcher count={text.count(external_handler)}, expected 1")
-    if text.count("if self.handleJerkgramExternalUrl(url)") != 3:
-        errors.append(
-            f"external URL callback dispatch count={text.count('if self.handleJerkgramExternalUrl(url)')}, expected 3"
-        )
+    if text.count(pairing_handler) != 1:
+        errors.append(f"pairing handler count={text.count(pairing_handler)}, expected 1")
+    if text.count(dispatcher) != 1:
+        errors.append(f"external dispatcher count={text.count(dispatcher)}, expected 1")
 
-    legacy_expected = """    func application(_ application: UIApplication, open url: URL, sourceApplication: String?) -> Bool {\n        if self.handleJerkgramExternalUrl(url) {\n            return true\n        }\n        self.openUrl(url: url)\n        return true\n    }\n"""
-    annotation_expected = """    func application(_ application: UIApplication, open url: URL, sourceApplication: String?, annotation: Any) -> Bool {\n        if self.handleJerkgramExternalUrl(url) {\n            return true\n        }\n        self.openUrl(url: url)\n        return true\n    }\n"""
-    modern_expected = """    func application(_ app: UIPapplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {\n        if self.handleJerkgramExternalUrl(url) {\n            return true\n        }\n        guard self.openUrlInProgress != url else {\n            return true\n        }\n        \n        self.openUrl(url: url)\n        return true\n    }\n"""
-    for name, expected in (
-        ("legacy sourceApplication", legacy_expected),
-        ("annotation", annotation_expected),
-        ("modern options", modern_expected),
-    ):
-        if text.count(expected) != 1:
-            errors.append(f"{name} URL callback is not routed through the shared Jerkgram dispatcher exactly once")
+    # Pairing routing must classify /authorize before any token validation so that
+    # malformed authorize URLs are consumed instead of reaching Telegram openUrl.
+    if pairing_handler in text and dispatcher in text:
+        pair_start = text.index(pairing_handler)
+        dispatcher_start = text.index(dispatcher, pair_start)
+        pair_scope = text[pair_start:dispatcher_start]
 
-    if handler in text and external_handler in text:
-        pairing_start = text.index(handler)
-        external_start = text.index(external_handler, pairing_start)
-        pairing_scope = text[pairing_start:external_start]
+        route_marker = 'url.path == "/authorize" else'
+        validation_marker = "guard url.absoluteString.utf8.count <= 2048"
+        if route_marker not in pair_scope or validation_marker not in pair_scope:
+            errors.append("pairing helper route/validation guards are incomplete")
+        elif pair_scope.index(route_marker) > pair_scope.index(validation_marker):
+            errors.append("/authorize route must be matched before token validation")
 
-        if pairing_scope.count("self.window?.rootViewController?.present(") != 4:
+        if "self.mainWindow?.viewController?.present(" in pair_scope:
+            errors.append("pairing helper must not call present on ContainableController")
+        if pair_scope.count("self.window?.rootViewController?.present(") != 4:
             errors.append("pairing helper must use exactly four UIKit root-view-controller presentations")
 
         for forbidden in (
             "UserDefaults",
-            "print(rawToken)",
-            "print(tokenData)",
-            "print(url)",
-            "mainWindow?.viewController?.present",
+            "print(",
+            "NSLog(",
+            "os_log(",
+            "Logger(",
         ):
-            if forbidden in pairing_scope:
-                errors.append(f"pairing helper contains forbidden persistence/logging/presentation: {forbidden}")
+            if forbidden in pair_scope:
+                errors.append(f"pairing helper contains forbidden persistence/token logging primitive: {forbidden}")
 
-        if 'url.path == "/authorize" else {\n            return false\n        }' not in pairing_scope:
-            errors.append("pairing handler must reject non-/authorize routes without consuming them")
-        if "Consume every malformed authorize request locally" not in pairing_scope:
-            errors.append("pairing handler must retain malformed-authorize consumption contract")
+        next_callback_marker = "func application(_ application: UIApplication, open url: URL, sourceApplication: String?, annotation: Any) -> Bool"
+        if next_callback_marker not in text:
+            errors.append("annotation external URL callback missing")
+        else:
+            next_callback = text.index(next_callback_marker, dispatcher_start)
+            dispatch_scope = text[dispatcher_start:next_callback]
+            pair_call = "self.handleJerkgramPushPairingUrl(url)"
+            click_call = "self.handleJerkgramPushUrl(url)"
+            if dispatch_scope.count(pair_call) != 1 or dispatch_scope.count(click_call) != 1:
+                errors.append("unified dispatcher must call pairing and click handlers exactly once")
+            elif dispatch_scope.index(pair_call) > dispatch_scope.index(click_call):
+                errors.append("unified dispatcher must check /authorize before /open")
+            if "self.openUrl(url: url)" in dispatch_scope:
+                errors.append("unified dispatcher must not call Telegram generic openUrl")
 
-        callback_start = text.index("func application(_ application: UIApplication, open url: URL", external_start)
-        external_scope = text[external_start:callback_starut
-        if "handleJerkgramPushPairingUrl(url)" not in external_scope or "handleJerkgramPushUrl(url)" not in external_scope:
-            errors.append("shared external dispatcher must contain both /authorize and /open handlers")
-        elif external_scope.index("handleJerkgramPushPairingUrl(url)") > external_scope.index("handleJerkgramPushUrl(url)"):
-            errors.append("/authorize handler must run before /open handler")
-    elif handler in text:
-        errors.append("shared external URL dispatcher missing after pairing helper")
+    callback_signatures = (
+        "func application(_ application: UIApplication, open url: URL, sourceApplication: String?) -> Bool",
+        "func application(_ application: UIApplication, open url: URL, sourceApplication: String?, annotation: Any) -> Bool",
+        "func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool",
+    )
+
+    def callback_scope(signature: str):
+        if signature not in text:
+            errors.append(f"external URL callback missing: {signature}")
+            return None
+        start = text.index(signature)
+        body_start = text.index("{", start)
+        depth = 0
+        for index in range(body_start, len(text)):
+            if text[index] == "{":
+                depth += 1
+            elif text[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start:index + 1]
+        errors.append(f"unterminated external URL callback: {signature}")
+        return None
+
+    for signature in callback_signatures:
+        scope = callback_scope(signature)
+        if scope is None:
+            continue
+        dispatch_call = "self.handleJerkgramExternalUrl(url)"
+        generic_call = "self.openUrl(url: url)"
+        if scope.count(dispatch_call) != 1:
+            errors.append(f"callback must call unified Jerkgram dispatcher exactly once: {signature}")
+        if generic_call not in scope:
+            errors.append(f"callback lost Telegram generic openUrl fallback: {signature}")
+        if dispatch_call in scope and generic_call in scope and scope.index(dispatch_call) > scope.index(generic_call):
+            errors.append(f"Jerkgram dispatcher must run before Telegram generic openUrl: {signature}")
+        if "self.handleJerkgramPushPairingUrl(url)" in scope or "self.handleJerkgramPushUrl(url)" in scope:
+            errors.append(f"callback must use only the unified Jerkgram dispatcher: {signature}")
+
+    modern_signature = "func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool"
+    modern_scope = callback_scope(modern_signature) if modern_signature in text else None
+    if modern_scope is not None:
+        dispatch_call = "self.handleJerkgramExternalUrl(url)"
+        progress_guard = "guard self.openUrlInProgress != url else"
+        generic_call = "self.openUrl(url: url)"
+        if progress_guard not in modern_scope:
+            errors.append("modern callback lost Telegram openUrlInProgress guard")
+        elif dispatch_call in modern_scope and generic_call in modern_scope:
+            if not (modern_scope.index(dispatch_call) < modern_scope.index(progress_guard) < modern_scope.index(generic_call)):
+                errors.append("modern callback order must be Jerkgram dispatch -> openUrlInProgress -> Telegram openUrl")
 
 if errors:
     print("[jerkgram-push-pairing-verify] FAIL")
