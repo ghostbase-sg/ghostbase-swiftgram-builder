@@ -44,12 +44,22 @@ def test_webk_push_patch(tmp_path: Path):
 
     patched = target.read_text()
     assert "buildJerkgramLandingUrl" in patched
-    assert "ctx.clients.openWindow(handoffUrl)" in patched
     assert "EXISTING_WEBK_HANDLER();" in patched
     assert patched.count("Jerkgram: default notification taps") == 1
     assert (root / "src/lib/serviceWorker/jerkgramPushHandoff.ts").exists()
     assert (root / "public/handoff.js").exists()
     assert (root / "public/open.html").exists()
+
+    # iOS/WebKit can cold-launch a Home Screen PWA at its start_url instead of
+    # the URL passed to clients.openWindow(). Persist the native handoff and
+    # actively navigate an existing client so notification taps cannot strand
+    # the user on the companion root screen.
+    assert "jerkgram-push-handoff-v1" in patched
+    assert "buildJerkgramNativeUrlFromPush" in patched
+    assert "ctx.clients.matchAll({type: 'window', includeUncontrolled: true})" in patched
+    assert ".navigate(handoffUrl)" in patched
+    assert "ctx.clients.openWindow(handoffUrl)" in patched
+    assert (root / "public/push-open-bootstrap.js").exists()
 
     # Visible notification presentation must use Telegram's loc_key/loc_args data
     # so private messages show sender + real message text instead of generic
