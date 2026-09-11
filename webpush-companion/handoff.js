@@ -82,3 +82,16 @@ export function buildJerkgramNativeUrl(search) {
   if (thread) url.searchParams.set('thread', thread);
   return url.href;
 }
+
+export function buildJerkgramNativeUrlFromPush(push) {
+  const data = buildJerkgramHandoffData(push);
+  if (!data) return null;
+
+  const params = new URLSearchParams();
+  if (data.user) params.set('user', data.user);
+  params.set('kind', data.kind);
+  params.set('peer', data.peer);
+  if (data.msg) params.set('msg', data.msg);
+  if (data.thread) params.set('thread', data.thread);
+  return buildJerkgramNativeUrl(params);
+}
