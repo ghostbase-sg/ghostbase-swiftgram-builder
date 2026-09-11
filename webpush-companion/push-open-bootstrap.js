@@ -43,7 +43,7 @@
   function openNative(value) {
     const nativeUrl = normalizeNativeUrl(value);
     if(!nativeUrl) return false;
-    window.location.replace(nativeUrl);
+    window.location.href = nativeUrl;
     return true;
   }
 
