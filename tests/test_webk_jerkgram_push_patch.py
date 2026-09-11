@@ -78,7 +78,7 @@ def test_webk_push_patch(tmp_path: Path):
     assert "tryJerkgramPendingNavigation" in patched_service_index
     assert "event.request.mode !== 'navigate'" in patched_service_index
     assert "jerkgram-push-handoff-v1" in patched_service_index
-    assert "window.location.replace" in patched_service_index
+    assert "window.location.href" in patched_service_index
     assert "event.respondWith(tryJerkgramPendingNavigation(event))" in patched_service_index
     assert "EXISTING_FETCH_HANDLER();" in patched_service_index
 
