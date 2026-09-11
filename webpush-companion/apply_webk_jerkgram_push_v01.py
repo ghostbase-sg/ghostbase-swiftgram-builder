@@ -5,11 +5,12 @@ import sys
 
 ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
 PUSH = ROOT / "src/lib/serviceWorker/push.ts"
+SERVICE_INDEX = ROOT / "src/lib/serviceWorker/index.service.ts"
 INDEX = ROOT / "index.html"
 PUBLIC = ROOT / "public"
 HERE = Path(__file__).resolve().parent
 
-if not PUSH.exists() or not INDEX.exists():
+if not PUSH.exists() or not SERVICE_INDEX.exists() or not INDEX.exists():
     raise SystemExit(f"[jerkgram-webk] missing required Web K files under {ROOT}")
 
 source = PUSH.read_text()
@@ -73,6 +74,123 @@ for invariant in (
 
 PUSH.write_text(source)
 
+service_source = SERVICE_INDEX.read_text()
+fetch_anchor = "const onFetch = (event: FetchEvent): void => {"
+nav_marker = "const tryJerkgramPendingNavigation = async(event: FetchEvent): Promise<Response> => {"
+if nav_marker not in service_source:
+    if fetch_anchor not in service_source:
+        raise SystemExit("[jerkgram-webk] service worker fetch anchor not found")
+
+    nav_helper = r'''const JERKGRAM_PUSH_HANDOFF_CACHE = 'jerkgram-push-handoff-v1';
+const JERKGRAM_PENDING_PUSH_NAME = '__jerkgram_pending_push__';
+
+const normalizeJerkgramNativeOpenUrl = (value: unknown): string | undefined => {
+  if(typeof value !== 'string' || !value) return undefined;
+
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch(_) {
+    return undefined;
+  }
+
+  if(url.protocol !== 'jerkgram:' || url.hostname !== 'push' || url.pathname !== '/open') {
+    return undefined;
+  }
+
+  const allowed = new Set(['kind', 'peer', 'user', 'msg', 'thread']);
+  for(const key of url.searchParams.keys()) {
+    if(!allowed.has(key)) return undefined;
+  }
+
+  const kind = url.searchParams.get('kind');
+  if(kind !== 'user' && kind !== 'chat' && kind !== 'channel') return undefined;
+
+  const positive = (name: string, required: boolean, max?: number) => {
+    const value = url.searchParams.get(name);
+    if(value === null) return !required;
+    if(!/^[1-9]\d*$/.test(value)) return false;
+    const n = Number(value);
+    return Number.isSafeInteger(n) && n > 0 && (max === undefined || n <= max);
+  };
+
+  if(!positive('peer', true)) return undefined;
+  if(!positive('user', false)) return undefined;
+  if(!positive('msg', false, 2147483647)) return undefined;
+  if(!positive('thread', false, 2147483647)) return undefined;
+  return url.href;
+};
+
+const tryJerkgramPendingNavigation = async(event: FetchEvent): Promise<Response> => {
+  if(event.request.mode !== 'navigate') {
+    return fetch(event.request);
+  }
+
+  const requestUrl = new URL(event.request.url);
+  const scopeUrl = new URL(ctx.registration.scope);
+  if(requestUrl.origin !== scopeUrl.origin || !requestUrl.pathname.startsWith(scopeUrl.pathname)) {
+    return fetch(event.request);
+  }
+
+  try {
+    const cache = await ctx.caches.open(JERKGRAM_PUSH_HANDOFF_CACHE);
+    const pendingKey = new URL(JERKGRAM_PENDING_PUSH_NAME, ctx.registration.scope).href;
+    const response = await cache.match(pendingKey);
+    if(!response) {
+      return fetch(event.request);
+    }
+
+    await cache.delete(pendingKey);
+    const payload = await response.json();
+    if(!payload || typeof payload.expiresAt !== 'number' || payload.expiresAt < Date.now()) {
+      return fetch(event.request);
+    }
+
+    const nativeUrl = normalizeJerkgramNativeOpenUrl(payload.url);
+    if(!nativeUrl) {
+      return fetch(event.request);
+    }
+
+    // Keep the custom-scheme jump synchronous in the first document script.
+    // The older async CacheStorage -> location transition can be blocked by
+    // iOS after the Home Screen PWA is cold-launched at start_url.
+    const serializedUrl = JSON.stringify(nativeUrl).replace(/</g, '\\u003c');
+    const body = '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>Open Jerkgram</title><body style="margin:0;background:#000">' +
+      '<button id="jg-open" style="display:none;position:fixed;inset:40% 15%;font:600 18px -apple-system">Open Jerkgram</button>' +
+      '<script>(function(){var u=' + serializedUrl + ';var b=document.getElementById("jg-open");' +
+      'b.onclick=function(){window.location.href=u};window.location.href=u;' +
+      'setTimeout(function(){b.style.display="block"},900)})()<\\/script>';
+
+    return new Response(body, {
+      status: 200,
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store',
+        'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"
+      }
+    });
+  } catch(_) {
+    return fetch(event.request);
+  }
+};
+
+'''
+    fetch_replacement = nav_helper + fetch_anchor + "\n  if(event.request.mode === 'navigate') {\n    event.respondWith(tryJerkgramPendingNavigation(event));\n    return;\n  }"
+    service_source = service_source.replace(fetch_anchor, fetch_replacement, 1)
+
+for invariant in (
+    nav_marker,
+    "event.request.mode !== 'navigate'",
+    "jerkgram-push-handoff-v1",
+    "window.location.href",
+    "event.respondWith(tryJerkgramPendingNavigation(event))",
+):
+    if invariant not in service_source:
+        raise SystemExit(f"[jerkgram-webk] service worker invariant missing after patch: {invariant}")
+
+SERVICE_INDEX.write_text(service_source)
+
 html = INDEX.read_text()
 bootstrap_tag = '  <script src="./push-open-bootstrap.js"></script>\n'
 if bootstrap_tag not in html:
@@ -92,6 +210,7 @@ shutil.copyfile(HERE / "push-open-bootstrap.js", PUBLIC / "push-open-bootstrap.j
 
 print("[jerkgram-webk] OK")
 print("  patched:", PUSH)
+print("  patched:", SERVICE_INDEX)
 print("  patched:", INDEX)
 print("  created: src/lib/serviceWorker/jerkgramPushHandoff.ts")
 print("  created: src/lib/serviceWorker/jerkgramPushPresentation.ts")
